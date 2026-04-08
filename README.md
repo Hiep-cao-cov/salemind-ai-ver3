@@ -32,6 +32,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app:app --reload
 ```
+https://github.com/Hiep-cao-cov/salemind-ai-ver3.git
 
 Open `http://127.0.0.1:8000`
 
