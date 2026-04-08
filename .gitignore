@@ -1,4 +1,4 @@
-# Virtual Environment
+# Environments
 .venv/
 venv/
 env/
@@ -8,14 +8,31 @@ ENV/
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
 
 # Database
 *.db
-app.db
+covestro_lab.db
 
-# Uploads
+# Uploaded files
 data/uploads/*
 !data/uploads/.gitkeep
 
 # Logs
 *.log
+*.log.*
+
+# Environment variables
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Render / Deployment
+.render/
