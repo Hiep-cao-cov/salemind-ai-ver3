@@ -1,0 +1,27 @@
+2026-04-07 17:13:54,364 | INFO | app | Application started and database initialized.
+2026-04-07 17:15:33,588 | INFO | app | Application started and database initialized.
+2026-04-07 17:33:50,520 | INFO | app | Application started and database initialized.
+2026-04-07 17:37:03,670 | INFO | app | Application started and database initialized.
+2026-04-07 18:10:26,710 | INFO | app | Application started and database initialized.
+2026-04-07 18:10:57,485 | INFO | app | Application started and database initialized.
+2026-04-07 18:39:09,691 | INFO | app | Application started and database initialized.
+2026-04-07 18:39:58,664 | INFO | app | Application started and database initialized.
+2026-04-07 21:07:31,737 | INFO | app | Application started and database initialized.
+2026-04-07 21:22:23,320 | INFO | app | Application started and database initialized.
+2026-04-07 21:22:46,879 | INFO | app | Application started and database initialized.
+2026-04-07 22:03:00,511 | INFO | app | Application started and database initialized.
+2026-04-08 17:07:51,268 | INFO | app | Application started and database initialized.
+2026-04-08 18:51:27,091 | INFO | app | Application started and database initialized.
+2026-04-08 18:51:47,052 | INFO | app | Application started and database initialized.
+2026-04-08 18:52:13,075 | INFO | app | Application started and database initialized.
+2026-04-08 18:52:37,819 | INFO | app | Application started and database initialized.
+2026-04-08 18:57:17,918 | INFO | app | Application started and database initialized.
+2026-04-08 18:59:14,250 | INFO | app | Application started and database initialized.
+2026-04-08 19:04:38,951 | INFO | app | Application started and database initialized.
+2026-04-08 19:07:24,113 | INFO | app | Application started and database initialized.
+2026-04-08 19:18:22,337 | INFO | app | Application started and database initialized.
+2026-04-08 19:20:23,915 | INFO | core.model_client | Calling model provider=fallback
+2026-04-08 19:20:46,887 | INFO | core.model_client | Calling model provider=fallback
+2026-04-08 19:20:52,149 | INFO | core.model_client | Calling model provider=fallback
+2026-04-08 19:20:53,198 | INFO | core.model_client | Calling model provider=fallback
+2026-04-08 22:09:22,402 | INFO | app | Application started and database initialized.

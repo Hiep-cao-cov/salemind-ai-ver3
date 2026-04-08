@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="hero compact">
+  <div class="hero-inner">
+    <div class="eyebrow">Module 2</div>
+    <h1>AI Sales Role Play</h1>
+    <p>Select a negotiation training mode to begin.</p>
+  </div>
+</section>
+
+<section class="grid-section">
+  <div class="card-grid four-grid">
+    <a class="module-card active" href="/workspace/sandbox">
+      <div class="module-label">Mode 1</div>
+      <h3>Sandbox</h3>
+      <p>Choose a library scenario, upload one, paste your own, or let AI generate one. Then run AI vs AI negotiation for 8–10 turns.</p>
+      <span class="cta-link">Open →</span>
+    </a>
+    <a class="module-card active" href="/workspace/real_case">
+      <div class="module-label">Mode 2</div>
+      <h3>Real Case</h3>
+      <p>Upload or paste a live case, let the model summarize it, then negotiate with the grounded context in view.</p>
+      <span class="cta-link">Open →</span>
+    </a>
+    <a class="module-card active" href="/workspace/reps">
+      <div class="module-label">Mode 3</div>
+      <h3>Reps</h3>
+      <p>Select a scenario from the scenario library, review the key negotiation levers, and drill your response rapidly.</p>
+      <span class="cta-link">Open →</span>
+    </a>
+    <a class="module-card active" href="/workspace/mentor">
+      <div class="module-label">Mode 4</div>
+      <h3>Mentor</h3>
+      <p>Use qualitative coaching, strategic guidance, and commercial discipline feedback without numeric scoring.</p>
+      <span class="cta-link">Open →</span>
+    </a>
+  </div>
+</section>
+{% endblock %}

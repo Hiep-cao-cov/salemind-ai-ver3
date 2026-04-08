@@ -1,0 +1,21 @@
+# Virtual Environment
+.venv/
+venv/
+env/
+ENV/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Database
+*.db
+app.db
+
+# Uploads
+data/uploads/*
+!data/uploads/.gitkeep
+
+# Logs
+*.log

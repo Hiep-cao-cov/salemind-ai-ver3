@@ -1,0 +1,16 @@
+Mode: SANDBOX
+
+Analyze this scenario for AI-vs-AI negotiation simulation.
+
+Goals:
+- create a concise but realistic scenario summary
+- identify the most important negotiation levers
+- highlight buyer pressure and seller risk
+- recommend strategies that respect the commercial guardrails
+- if the source is AI-generated or incomplete, you may enrich the scenario slightly for realism
+
+Scenario source: {source_type}
+Scenario name: {source_name}
+
+Scenario content:
+{raw_text}

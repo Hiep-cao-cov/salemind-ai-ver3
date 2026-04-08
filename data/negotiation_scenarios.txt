@@ -1,0 +1,19 @@
+id: price_pressure_basf
+title: BASF price pressure with annual volume review
+persona: price-driven
+context: A regional coatings producer is reviewing annual supply terms for a specialty raw material. The buyer says BASF is 6 to 8 percent lower on price and asks Covestro to respond immediately. The customer also wants better payment terms and expects technical support to remain included. The account is important, but margin discipline is critical because this product line is already under pressure.
+---
+id: payment_terms_launch
+title: Product launch with payment-term pressure
+persona: procurement-hardliner
+context: A customer preparing a product launch wants 60-day payment terms because cash flow will be tight during the ramp-up period. They argue that a competitor is open to longer terms. In exchange, they offer the possibility of more volume over the next two quarters, but forecast quality is still uncertain. Supply reliability and launch support are major concerns for the customer.
+---
+id: service_value_defense
+title: Service package and technical support negotiation
+persona: technical
+context: A customer says the current offer looks expensive unless Covestro can demonstrate stronger technical support during implementation. The buyer expects on-site troubleshooting and a faster response time, but procurement is pushing to keep the package cost-neutral. The discussion needs to shift from upfront price to risk mitigation, process stability, and implementation support.
+---
+id: competitor_stalling
+title: Competitor comparison and delayed decision
+persona: relationship
+context: The customer keeps delaying the decision while referencing a competitor proposal from Wanhua. They claim internal alignment is still in progress and ask Covestro to hold pricing while they compare lead times, service levels, and long-term supply confidence. The account has strategic value, but the buyer is using delay tactics to increase leverage.

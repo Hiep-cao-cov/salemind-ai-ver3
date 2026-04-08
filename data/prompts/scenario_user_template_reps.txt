@@ -1,0 +1,15 @@
+Mode: REPS
+
+Analyze this drill scenario for fast practice.
+
+Goals:
+- keep the summary concise
+- identify the most important objection patterns
+- identify 3 to 5 negotiation levers
+- recommend short tactical responses suitable for drill mode
+
+Scenario source: {source_type}
+Scenario name: {source_name}
+
+Scenario content:
+{raw_text}

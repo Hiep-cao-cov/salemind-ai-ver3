@@ -1,0 +1,16 @@
+Mode: REAL CASE
+
+Analyze this real business case conservatively.
+
+Goals:
+- extract facts only from the provided content
+- avoid hallucination
+- identify key business constraints
+- identify negotiation leverage and risks
+- recommend grounded strategies tied to the case
+
+Scenario source: {source_type}
+Scenario name: {source_name}
+
+Scenario content:
+{raw_text}

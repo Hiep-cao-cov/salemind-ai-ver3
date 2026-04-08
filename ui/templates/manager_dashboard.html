@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="hero compact">
+  <div class="hero-inner">
+    <div class="eyebrow">Enterprise View</div>
+    <h1>Manager Dashboard</h1>
+    <p>Track adoption, session volume, mode usage, and recent team activity.</p>
+  </div>
+</section>
+
+<section class="dashboard-grid">
+  <div class="kpi-card"><span>Total Users</span><strong>{{ analytics.totals.users }}</strong></div>
+  <div class="kpi-card"><span>Total Sessions</span><strong>{{ analytics.totals.sessions }}</strong></div>
+  <div class="kpi-card"><span>Total Messages</span><strong>{{ analytics.totals.messages }}</strong></div>
+  <div class="kpi-card"><span>Uploaded Files</span><strong>{{ analytics.totals.files }}</strong></div>
+</section>
+
+<section class="dashboard-panels">
+  <div class="panel">
+    <h3>Mode Distribution</h3>
+    <ul class="analytics-list">
+      {% for item in analytics.mode_distribution %}
+      <li><span>{{ item.mode_key|replace('_', ' ')|title }}</span><strong>{{ item.total }}</strong></li>
+      {% endfor %}
+    </ul>
+  </div>
+  <div class="panel">
+    <h3>Top Users</h3>
+    <ul class="analytics-list">
+      {% for item in analytics.top_users %}
+      <li><span>{{ item.display_name }} · {{ item.role }}</span><strong>{{ item.total_sessions }}</strong></li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+
+<section class="panel recent-panel">
+  <h3>Recent Sessions</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>User</th><th>Role</th><th>Mode</th><th>Updated</th><th>Session</th></tr>
+      </thead>
+      <tbody>
+        {% for row in analytics.recent_sessions %}
+        <tr>
+          <td>{{ row.display_name }}</td>
+          <td>{{ row.role }}</td>
+          <td>{{ row.mode_key|replace('_', ' ')|title }}</td>
+          <td>{{ row.updated_at }}</td>
+          <td class="mono">{{ row.session_id[:8] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

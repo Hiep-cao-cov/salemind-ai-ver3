@@ -1,0 +1,543 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="workspace-shell">
+  <aside class="workspace-sidebar">
+    <div class="panel sidebar-card">
+      <h3>{{ mode_label }}</h3>
+      <p class="small-text">Focused workspace for {{ current_user.display_name }}</p>
+      <div class="sidebar-links">
+        <a href="/module-2">← Back to Mode Selection</a>
+        {% if current_user.role in ['Sales Manager', 'HR'] %}
+        <a href="/manager">Manager Dashboard</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="panel sidebar-card">
+      <h4>Your {{ mode_label }} History</h4>
+      <div class="session-list">
+        {% for session in recent_sessions %}
+        <a class="session-item {% if session.session_id == session_id %}selected{% endif %}" href="/workspace/{{ session.mode_key }}?session_id={{ session.session_id }}">
+          <strong>{{ session.title }}</strong>
+          <span>{{ session.updated_at }}</span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </aside>
+
+  <main class="workspace-main" id="workspace-root" data-mode="{{ mode }}" data-session="{{ session_id }}" data-has-context="{{ 'true' if has_context else 'false' }}">
+    <div class="workspace-header">
+      <div>
+        <div class="eyebrow">Module 2</div>
+        <h2>{{ mode_label }}</h2>
+        <p class="muted-copy">
+          {% if mode == 'sandbox' %}
+          Prepare a scenario, review the summary, then run the AI vs AI negotiation transcript.
+          {% elif mode == 'real_case' %}
+          Upload or paste a case, review the extracted negotiation context, then continue the grounded conversation.
+          {% elif mode == 'reps' %}
+          Load a scenario from the library, review the negotiation levers, then practice concise responses.
+          {% else %}
+          Use focused strategic coaching with minimal distraction.
+          {% endif %}
+        </p>
+      </div>
+      <div class="action-cluster">
+        <button class="pill-btn" data-action="help">Help</button>
+        {% if mode == 'sandbox' %}
+        <button class="pill-btn" data-action="auto">Auto</button>
+        {% endif %}
+        <button class="pill-btn" data-action="coach">Coach</button>
+      </div>
+    </div>
+
+    {% if mode in ['sandbox', 'real_case', 'reps'] %}
+    <section class="panel scenario-panel">
+      <div class="scenario-toolbar">
+        <div>
+          <h3>Scenario Setup</h3>
+          <p class="small-text">
+            {% if mode == 'sandbox' %}
+            Pick a library scenario, paste your own, upload a case, or let AI create one.
+            {% elif mode == 'real_case' %}
+            Upload a file or paste your real case, then let the model summarize the scenario for negotiation.
+            {% else %}
+            Load one of the predefined drill scenarios and review the extracted negotiation points.
+            {% endif %}
+          </p>
+        </div>
+      </div>
+
+      <form id="scenario-form" class="scenario-form">
+        <input type="hidden" name="session_id" value="{{ session_id }}" />
+        <input type="hidden" name="mode" value="{{ mode }}" />
+
+        <div>
+          <label>Analyzer Mode</label>
+          <select name="analyzer_mode" id="analyzer-mode">
+            <option value="cloud_model">Cloud Model</option>
+            <option value="local_model">Local Model</option>
+            <option value="no_llm" selected>No LLM</option>
+          </select>
+        </div>
+
+        <div class="scenario-grid">
+          {% if mode == 'sandbox' %}
+          <div>
+            <label>Scenario source</label>
+            <select name="source_type" id="source-type">
+              <option value="ai">AI create scenario</option>
+              <option value="library">Use Scenarios file</option>
+              <option value="upload">Upload my scenario</option>
+              <option value="paste">Paste my scenario</option>
+            </select>
+          </div>
+          {% elif mode == 'real_case' %}
+          <div>
+            <label>Scenario source</label>
+            <select name="source_type" id="source-type">
+              <option value="paste">Paste case in composer</option>
+              <option value="upload">Upload case file</option>
+            </select>
+          </div>
+          {% elif mode == 'reps' %}
+          <div>
+            <label>Scenario source</label>
+            <select name="source_type" id="source-type">
+              <option value="library">Use Scenarios file</option>
+            </select>
+          </div>
+          {% endif %}
+
+          {% if mode in ['sandbox', 'reps'] %}
+          <div id="scenario-library-wrap" class="{% if mode == 'sandbox' %}hidden{% endif %}">
+            <label>Scenario library</label>
+            <select name="scenario_key" id="scenario-key">
+              {% for item in scenario_library %}
+              <option value="{{ item.id }}">{{ item.title }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+
+          <div id="scenario-file-wrap" class="{% if mode != 'real_case' %}hidden{% endif %}">
+            <label>Upload file</label>
+            <input type="file" name="file" />
+          </div>
+        </div>
+
+        {% if mode == 'sandbox' %}
+        <textarea id="scenario-brief" name="content" rows="3" placeholder="Optional: describe the scenario you want AI to create or prepare. You can also paste your full scenario here and click Analyze."></textarea>
+        {% elif mode == 'reps' %}
+        <textarea id="scenario-brief" name="content" rows="2" placeholder="Optional drill note for yourself. The library scenario will still be used."></textarea>
+        {% else %}
+        <textarea id="scenario-brief" name="content" rows="2" placeholder="Optional note. In Real Case mode, you can also paste the full case directly into the composer below and click Send."></textarea>
+        {% endif %}
+
+        <div class="scenario-actions">
+          <button class="secondary-btn" type="submit">Analyze Scenario</button>
+          {% if mode == 'sandbox' %}
+          <button class="primary-btn" type="button" id="run-simulation-btn" disabled> 
+            Run AI vs AI (8–10 turns)
+          </button>
+          {% endif %}
+        </div>
+      </form>
+    </section>
+    {% endif %}
+
+    <section class="panel summary-panel {% if not has_context %}hidden{% endif %}" id="summary-panel">
+      <div class="summary-header">
+        <div>
+          <div class="eyebrow">Scenario Summary</div>
+          <h3 id="summary-title">{{ mode_context.title if mode_context else '' }}</h3>
+        </div>
+        <span class="summary-source" id="summary-source">{{ mode_context.source_name if mode_context else '' }}</span>
+      </div>
+      <p class="summary-copy" id="summary-copy">{{ mode_context.summary if mode_context else '' }}</p>
+      <div class="summary-columns">
+        <div>
+          <h4>Key content for negotiation</h4>
+          <ul id="summary-key-points">
+            {% if mode_context %}{% for item in mode_context.key_points %}<li>{{ item }}</li>{% endfor %}{% endif %}
+          </ul>
+        </div>
+        {% if mode_context %}
+        <div class="summary-columns">
+          <div>
+            <h4>Stakeholders</h4>
+            <ul>
+              <li><strong>Buyer:</strong> {{ mode_context.stakeholders.buyer if mode_context.stakeholders else '' }}</li>
+              <li><strong>Seller:</strong> {{ mode_context.stakeholders.seller if mode_context.stakeholders else '' }}</li>
+            </ul>
+          </div>
+          <div>
+            <h4>Pain Points</h4>
+            <ul>
+              {% for item in mode_context.pain_points %}
+              <li>{{ item }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+
+        <div class="summary-columns">
+          <div>
+            <h4>Risks</h4>
+            <ul>
+              {% for item in mode_context.risks %}
+              <li>{{ item }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div>
+            <h4>Power Dynamics</h4>
+            <ul>
+              {% for item in mode_context.power_dynamics %}
+              <li>{{ item }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+
+        <div class="summary-columns">
+          <div>
+            <h4>Recommended Strategies</h4>
+            <ul>
+              {% for item in mode_context.recommended_strategies %}
+              <li>{{ item }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div>
+            <h4>Tactical Suggestions</h4>
+            <ul>
+              {% for item in mode_context.tactical_suggestions %}
+              <li>{{ item }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+
+        <div class="summary-columns">
+          <div>
+            <h4>Possible Objections</h4>
+            <ul>
+              {% for item in mode_context.possible_objections %}
+              <li>{{ item }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+          <div></div>
+        </div>
+        {% endif %}
+        <div>
+          <h4>Recommended negotiation focus</h4>
+          <ul id="summary-negotiation-points">
+            {% if mode_context %}{% for item in mode_context.negotiation_points %}<li>{{ item }}</li>{% endfor %}{% endif %}
+          </ul>
+        </div>
+      </div>
+      <details class="scenario-details {% if not mode_context or not mode_context.generated_scenario %}hidden{% endif %}" id="generated-scenario-wrap">
+        <summary>Show AI-generated scenario text</summary>
+        <pre id="generated-scenario">{{ mode_context.generated_scenario if mode_context else '' }}</pre>
+      </details>
+    </section>
+
+    <div id="chat-panel" class="chat-panel">
+      {% for msg in messages %}
+      <div class="message-row {{ msg.role }}">
+        <div class="bubble">
+          <div class="bubble-meta">
+            {% if msg.role == 'user' %}You
+            {% elif msg.role == 'buyer_ai' %}AI Buyer
+            {% elif msg.role == 'sales_ai' %}AI Sales
+            {% elif msg.role == 'system' %}System
+            {% else %}AI Coach{% endif %}
+          </div>
+          <div class="bubble-text">{{ msg.content }}</div>
+          {% if msg.audit and msg.role in ['assistant', 'system'] %}
+          <div class="audit-chip">{{ msg.audit.summary }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="composer-wrap">
+      <textarea id="message-input" class="composer" rows="3" disabled></textarea>  
+        <div class="small-text">{{ current_user.display_name }} · {{ current_user.role }}</div>
+        <button class="primary-btn" id="send-btn" type="button" disabled>
+          Send
+        </button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="progress-dock">
+  <div class="progress-bar"><span id="progress-fill"></span></div>
+  <div class="progress-label" id="progress-label">Ready</div>
+</div>
+</script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const mode = "{{ mode }}";
+  const sourceTypeEl = document.getElementById("source-type");
+  const libraryWrap = document.getElementById("scenario-library-wrap");
+  const fileWrap = document.getElementById("scenario-file-wrap");
+  const briefEl = document.getElementById("scenario-brief");
+  const hasContext = "{{ 'true' if has_context else 'false' }}" === "true";
+
+  function toggleScenarioUI() {
+    if (!sourceTypeEl) return;
+
+    const value = sourceTypeEl.value;
+
+    if (libraryWrap) {
+      if (mode === "sandbox") {
+        libraryWrap.classList.toggle("hidden", value !== "library");
+      } else if (mode === "reps") {
+        libraryWrap.classList.remove("hidden");
+      }
+    }
+
+    if (fileWrap) {
+      if (mode === "sandbox") {
+        fileWrap.classList.toggle("hidden", value !== "upload");
+      } else if (mode === "real_case") {
+        fileWrap.classList.toggle("hidden", value !== "upload");
+      }
+    }
+
+    if (briefEl && mode === "sandbox") {
+      if (value === "ai") {
+        briefEl.placeholder = "Optional: describe the scenario you want AI to create.";
+      } else if (value === "paste") {
+        briefEl.placeholder = "Paste your full scenario here, then click Analyze Scenario.";
+      } else if (value === "upload") {
+        briefEl.placeholder = "Optional note for uploaded scenario.";
+      } else if (value === "library") {
+        briefEl.placeholder = "Optional note for selected scenario from library.";
+      }
+    }
+  }
+
+  if (sourceTypeEl) {
+    sourceTypeEl.addEventListener("change", toggleScenarioUI);
+    toggleScenarioUI();
+  }
+
+  // Auto-create scenario for Mode 1 on first load when no context exists yet
+  if (mode === "sandbox" && sourceTypeEl && sourceTypeEl.value === "ai" && !hasContext) {
+    const formData = new FormData();
+    formData.append("session_id", "{{ session_id }}");
+    formData.append("mode", "sandbox");
+    formData.append("source_type", "ai");
+    formData.append("content", "");
+
+    fetch("/api/scenario/prepare", {
+      method: "POST",
+      body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (!data.ok || !data.context) return;
+
+      const summaryPanel = document.getElementById("summary-panel");
+      const titleEl = document.getElementById("summary-title");
+      const sourceEl = document.getElementById("summary-source");
+      const copyEl = document.getElementById("summary-copy");
+      const keyList = document.getElementById("summary-key-points");
+      const negList = document.getElementById("summary-negotiation-points");
+      const generatedWrap = document.getElementById("generated-scenario-wrap");
+      const generatedText = document.getElementById("generated-scenario");
+
+      if (summaryPanel) summaryPanel.classList.remove("hidden");
+      if (titleEl) titleEl.textContent = data.context.title || "";
+      if (sourceEl) sourceEl.textContent = data.context.source_name || "AI Generated Scenario";
+      if (copyEl) copyEl.textContent = data.context.summary || "";
+
+      if (keyList) {
+        keyList.innerHTML = "";
+        (data.context.key_points || []).forEach(item => {
+          const li = document.createElement("li");
+          li.textContent = item;
+          keyList.appendChild(li);
+        });
+      }
+
+      if (negList) {
+        negList.innerHTML = "";
+        (data.context.negotiation_points || []).forEach(item => {
+          const li = document.createElement("li");
+          li.textContent = item;
+          negList.appendChild(li);
+        });
+      }
+
+      if (generatedWrap && generatedText) {
+        if (data.context.generated_scenario) {
+          generatedWrap.classList.remove("hidden");
+          generatedText.textContent = data.context.generated_scenario;
+        }
+      }
+
+      document.getElementById("workspace-root")?.setAttribute("data-has-context", "true");
+    })
+    .catch(err => console.error("Auto AI scenario error:", err));
+  }
+});
+</script>
+{% endblock %}
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+  const mode = "{{ mode }}";
+  const hasContext = "{{ 'true' if has_context else 'false' }}" === "true";
+
+  const runBtn = document.getElementById("run-simulation-btn");
+  const sendBtn = document.getElementById("send-btn");
+  const messageInput = document.getElementById("message-input");
+  const sourceTypeEl = document.getElementById("source-type");
+
+  // =========================
+  // STATE CONTROL
+  // =========================
+
+  function lockWorkflow() {
+    if (runBtn) runBtn.disabled = true;
+    if (sendBtn) sendBtn.disabled = true;
+    if (messageInput) messageInput.disabled = true;
+  }
+
+  function unlockWorkflow() {
+    if (runBtn) runBtn.disabled = false;
+    if (sendBtn) sendBtn.disabled = false;
+    if (messageInput) messageInput.disabled = false;
+  }
+
+  // =========================
+  // INITIAL STATE
+  // =========================
+
+  if (mode === "sandbox") {
+    if (!hasContext) {
+      lockWorkflow();
+    } else {
+      unlockWorkflow();
+    }
+  }
+
+  // =========================
+  // RESET WHEN USER CHANGE SOURCE
+  // =========================
+
+  if (sourceTypeEl) {
+    sourceTypeEl.addEventListener("change", function () {
+      lockWorkflow();
+
+      // clear summary panel (optional but recommended)
+      const summaryPanel = document.getElementById("summary-panel");
+      if (summaryPanel) {
+        summaryPanel.classList.add("hidden");
+      }
+    });
+  }
+
+  // =========================
+  // HOOK ANALYZE FORM SUBMIT
+  // =========================
+
+  const form = document.getElementById("scenario-form");
+
+  if (form) {
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+
+      lockWorkflow();
+
+      const formData = new FormData(form);
+
+      // show loading UI
+      const progress = document.getElementById("progress-fill");
+      const label = document.getElementById("progress-label");
+
+      if (progress) progress.style.width = "30%";
+      if (label) label.innerText = "Analyzing scenario...";
+
+      fetch("/api/scenario/prepare", {
+        method: "POST",
+        body: formData
+      })
+      .then(res => res.json())
+      .then(data => {
+
+        if (data.ok) {
+
+          // =========================
+          // UPDATE SUMMARY PANEL
+          // =========================
+
+          const ctx = data.context;
+
+          const summaryPanel = document.getElementById("summary-panel");
+          const titleEl = document.getElementById("summary-title");
+          const sourceEl = document.getElementById("summary-source");
+          const copyEl = document.getElementById("summary-copy");
+          const keyList = document.getElementById("summary-key-points");
+          const negList = document.getElementById("summary-negotiation-points");
+
+          if (summaryPanel) summaryPanel.classList.remove("hidden");
+
+          if (titleEl) titleEl.textContent = ctx.title || "";
+          if (sourceEl) sourceEl.textContent = ctx.source_name || "";
+          if (copyEl) copyEl.textContent = ctx.summary || "";
+
+          if (keyList) {
+            keyList.innerHTML = "";
+            (ctx.key_points || []).forEach(item => {
+              const li = document.createElement("li");
+              li.textContent = item;
+              keyList.appendChild(li);
+            });
+          }
+
+          if (negList) {
+            negList.innerHTML = "";
+            (ctx.negotiation_points || []).forEach(item => {
+              const li = document.createElement("li");
+              li.textContent = item;
+              negList.appendChild(li);
+            });
+          }
+
+          // =========================
+          // UNLOCK WORKFLOW
+          // =========================
+
+          unlockWorkflow();
+
+          // =========================
+          // PROGRESS BAR COMPLETE
+          // =========================
+
+          if (progress) progress.style.width = "100%";
+          if (label) label.innerText = "Ready";
+
+          setTimeout(() => {
+            if (progress) progress.style.width = "0%";
+          }, 1000);
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        if (label) label.innerText = "Error occurred";
+      });
+    });
+  }
+
+});
+</script>
