@@ -1,0 +1,143 @@
+.workspace-v2 {
+  --w2-bg: linear-gradient(180deg, #f4f8fe 0%, #edf4ff 100%);
+  --w2-panel: #ffffff;
+  --w2-border: #d2e0f0;
+  --w2-text: #0f2a4a;
+  --w2-muted: #5f748e;
+  --w2-accent: #103d8a;
+  --w2-accent-2: #1d5fd1;
+  --w2-soft: #e9f2ff;
+  --w2-radius: 18px;
+  --w2-shadow: 0 10px 24px rgba(16, 35, 62, 0.08);
+}
+
+.workspace-v2 .workspace-mode-strip {
+  padding: 12px clamp(14px, 2vw, 28px) 0;
+}
+
+.workspace-v2 .mode-switch {
+  background: var(--w2-bg);
+  border: 1px solid var(--w2-border);
+  border-radius: var(--w2-radius);
+  box-shadow: var(--w2-shadow);
+  padding: 12px;
+}
+
+.workspace-v2 .mode-switch-label {
+  color: var(--w2-accent);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.workspace-v2 .mode-switch-row {
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.workspace-v2 .mode-btn {
+  min-height: 42px;
+  border-radius: 12px;
+  background: var(--w2-soft);
+  color: var(--w2-accent);
+  border: 1px solid #c8daf4;
+  font-weight: 800;
+}
+
+.workspace-v2 .mode-btn.active {
+  background: linear-gradient(135deg, var(--w2-accent), var(--w2-accent-2));
+  color: #fff;
+  border-color: rgba(8, 43, 102, 0.35);
+}
+
+.workspace-v2 .workspace-layout {
+  width: 100%;
+  padding: 0 clamp(14px, 2vw, 28px) 100px;
+}
+
+.workspace-v2 .workspace-shell {
+  display: block;
+  padding-top: 16px;
+}
+
+.workspace-v2 .workspace-main {
+  display: grid;
+  gap: 16px;
+}
+
+.workspace-v2 .workspace-header {
+  background: var(--w2-bg);
+  border: 1px solid var(--w2-border);
+  border-radius: var(--w2-radius);
+  box-shadow: var(--w2-shadow);
+  padding: 18px;
+}
+
+.workspace-v2 .workspace-header h2 {
+  color: var(--w2-text);
+  font-size: clamp(24px, 2vw, 32px);
+}
+
+.workspace-v2 .muted-copy,
+.workspace-v2 .small-text {
+  color: var(--w2-muted);
+}
+
+.workspace-v2 .scenario-panel,
+.workspace-v2 .summary-panel,
+.workspace-v2 .chat-shell,
+.workspace-v2 .composer-wrap {
+  border-radius: var(--w2-radius);
+  border: 1px solid var(--w2-border);
+  background: var(--w2-panel);
+  box-shadow: var(--w2-shadow);
+}
+
+.workspace-v2 .scenario-panel,
+.workspace-v2 .summary-panel,
+.workspace-v2 .chat-shell {
+  padding: 20px;
+}
+
+.workspace-v2 .chat-panel {
+  border-radius: 16px;
+  border: 1px solid var(--w2-border);
+  background: #f7fbff;
+  min-height: 420px;
+}
+
+.workspace-v2 .bubble {
+  border-radius: 16px;
+}
+
+.workspace-v2 .message-row.user .bubble {
+  background: linear-gradient(135deg, var(--w2-accent), var(--w2-accent-2));
+}
+
+.workspace-v2 .message-row.assistant .bubble,
+.workspace-v2 .message-row.system .bubble {
+  border: 1px solid var(--w2-border);
+}
+
+.workspace-v2 .progress-dock {
+  background: rgba(255, 255, 255, 0.97);
+}
+
+@media (max-width: 1024px) {
+  .workspace-v2 .workspace-layout {
+    padding: 0 16px 96px;
+  }
+
+  .workspace-v2 .workspace-header,
+  .workspace-v2 .summary-header,
+  .workspace-v2 .chat-shell-header,
+  .workspace-v2 .scenario-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

@@ -15,8 +15,8 @@ MODE_RUNNERS = {
 
 MODE_PREPARERS = {
     "sandbox": sandbox.prepare_scenario,
-    "real_case": real_case.prepare_scenario,
-    "reps": reps.prepare_scenario,
+    "real_case": real_case.prepare_scenario
+   ## "reps": reps.prepare_scenario,
 }
 
 
@@ -49,6 +49,12 @@ def prepare_mode_context_v2(
     analyzer_mode = (analyzer_mode or "no_llm").strip().lower()
 
     if analyzer_mode == "no_llm":
+        return prepare_mode_context(mode, source_type, source_name, raw_text)
+
+    # For AI source, keep the scenario generation workflow enabled even when
+    # cloud model is selected. This ensures the model can create scenario text
+    # and return summary/key points in one step (OpenAI/Bedrock path).
+    if analyzer_mode == "cloud_model" and source_type == "ai":
         return prepare_mode_context(mode, source_type, source_name, raw_text)
 
     if analyzer_mode == "local_model":

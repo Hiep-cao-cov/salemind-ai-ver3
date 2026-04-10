@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Covestro Strategy Lab Enterprise</title>
   <link rel="stylesheet" href="/static/css/app.css" />
+  {% block extra_head %}{% endblock %}
   <script defer src="/static/js/app.js"></script>
 </head>
 <body>
@@ -13,7 +14,7 @@
     <nav class="topnav">
       <a href="/">Home</a>
       {% if current_user %}
-      <a href="/module-2">Module 2</a>
+      <a href="/workspace/sandbox">AI Sales Role Play</a>
       {% if current_user.role in ['Sales Manager', 'HR'] %}
       <a href="/manager">Manager Dashboard</a>
       {% endif %}

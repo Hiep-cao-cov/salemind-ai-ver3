@@ -1,56 +1,10 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="hero">
-  <div class="hero-inner">
+<section class="landing-shell" id="onboarding">
+  <aside class="panel auth-panel landing-auth">
     <div class="eyebrow">SaleMind AI</div>
-    <h1>COVESTRO STRATEGY LAB</h1>
-    <p>AI-powered negotiation training for commercial excellence.</p>
-  </div>
-</section>
-
-<section class="grid-section">
-  <div class="card-grid five-grid">
-    <div class="module-card muted">
-      <div class="module-label">Module 1</div>
-      <h3>Account Planning Support</h3>
-      <p>Commercial planning support tools are in development.</p>
-      <span class="badge">Coming Soon</span>
-    </div>
-    <div class="module-card active">
-      <div class="module-label">Module 2</div>
-      <h3>AI Sales Role Play</h3>
-      <p>Run Negotiation simulations, coaching, drills, and real-case practice.</p>
-      {% if current_user %}
-      <a class="cta-link" href="/module-2">Enter Module →</a>
-      {% else %}
-      <button class="cta-link button-link" onclick="document.getElementById('onboarding').scrollIntoView({behavior:'smooth'})">Start Now →</button>
-      {% endif %}
-    </div>
-    <div class="module-card muted">
-      <div class="module-label">Module 3</div>
-      <h3>AI Sales Coaching & Training</h3>
-      <p>Manager-led coaching workflows are in development.</p>
-      <span class="badge">Coming Soon</span>
-    </div>
-    <div class="module-card muted">
-      <div class="module-label">Module 4</div>
-      <h3>Sales Onboarding</h3>
-      <p>Accelerated onboarding experiences are in development.</p>
-      <span class="badge">Coming Soon</span>
-    </div>
-    <div class="module-card muted">
-      <div class="module-label">Module 5</div>
-      <h3>Sales Hiring</h3>
-      <p>Assessment and simulation-based hiring tools are in development.</p>
-      <span class="badge">Coming Soon</span>
-    </div>
-  </div>
-</section>
-
-<section class="onboarding-wrap" id="onboarding">
-  <div class="panel auth-panel">
     <h2>Start Your Session</h2>
-    <p>Enter your name or CWID and choose your job role to access SaleMind AI.</p>
+    <p>Enter your details to access AI Sales Role Play.</p>
     <form method="post" action="/auth/start" class="auth-form">
       <label>Name</label>
       <input type="text" name="display_name" placeholder="Your name" required />
@@ -62,8 +16,53 @@
         <option value="{{ role }}">{{ role }}</option>
         {% endfor %}
       </select>
-      <button class="primary-btn" type="submit">OK</button>
+      <button class="primary-btn" type="submit">Enter Workspace</button>
     </form>
-  </div>
+  </aside>
+
+  <main class="landing-main">
+    <section class="hero landing-hero">
+      <div class="hero-inner">
+        <div class="eyebrow">Covestro Strategy Lab</div>
+        <h1>SALES ROLE PLAY SIMULATION</h1>
+        <p>Professional negotiation practice with guided coaching and scenario-driven simulation.</p>
+        <div class="landing-meta">
+          <span class="meta-chip">Scenario Analysis</span>
+          <span class="meta-chip">Coaching Guidance</span>
+          <span class="meta-chip">Role-play Simulation</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid-section landing-grid-section">
+      <div class="card-grid compact-grid">
+        <div class="module-card active compact-card">
+          <div class="module-label">Live Module</div>
+          <h3>AI Sales Role Play</h3>
+          <p>One focused role-play workspace to analyze scenarios, practice strategy, and improve commercial discipline.</p>
+          {% if current_user %}
+          <a class="cta-link" href="/workspace/sandbox">Open Workspace →</a>
+          {% else %}
+          <button class="cta-link button-link" onclick="document.getElementById('onboarding').scrollIntoView({behavior:'smooth'})">Complete Sign In →</button>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+
+    <section class="landing-benefits">
+      <div class="benefit-card">
+        <h4>Focused Workflow</h4>
+        <p>One workspace from scenario prep to negotiation execution, without module switching.</p>
+      </div>
+      <div class="benefit-card">
+        <h4>Commercial Discipline</h4>
+        <p>Practice margin defense, value exchange, and structured responses under pressure.</p>
+      </div>
+      <div class="benefit-card">
+        <h4>Manager Visibility</h4>
+        <p>Usage analytics and session tracking remain available for Sales Manager and HR roles.</p>
+      </div>
+    </section>
+  </main>
 </section>
 {% endblock %}

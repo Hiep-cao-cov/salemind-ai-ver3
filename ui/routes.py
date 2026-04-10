@@ -32,11 +32,10 @@ router = APIRouter()
 templates = Jinja2Templates(directory="ui/templates")
 
 JOB_ROLES = ["Sales Manager", "Marketing", "Sales Distributor", "HR"]
+DEFAULT_MODE = "sandbox"
 MODE_LABELS: Dict[str, str] = {
-    "sandbox": "Mode 1 · Sandbox",
-    "real_case": "Mode 2 · Real Case",
-    "reps": "Mode 3 · Reps",
-    "mentor": "Mode 4 · Mentor",
+    "sandbox": "DEMO",
+    "real_case": "PRACTICE",
 }
 
 
@@ -122,7 +121,7 @@ def auth_start(
         "role": user["role"],
     }
     set_user_session(request, session_payload)
-    return RedirectResponse(url="/module-2", status_code=303)
+    return RedirectResponse(url=f"/workspace/{DEFAULT_MODE}", status_code=303)
 
 
 @router.get("/logout")
@@ -133,29 +132,18 @@ def logout(request: Request):
 
 @router.get("/module-2", response_class=HTMLResponse)
 def module2(request: Request):
-    user = _sync_db_user(request)
-
-    context = _base_context(request)
-    context.update(
-        {
-            "modes": MODE_LABELS,
-            "user": user,
-        }
-    )
-
-    return templates.TemplateResponse(
-        request=request,
-        name="module2.html",
-        context=context,
-    )
+    _sync_db_user(request)
+    return RedirectResponse(url=f"/workspace/{DEFAULT_MODE}", status_code=303)
 
 
 @router.get("/workspace/{mode}", response_class=HTMLResponse)
 def workspace(request: Request, mode: str, session_id: str | None = None):
     user = _sync_db_user(request)
 
-    if mode not in MODE_LABELS:
-        raise HTTPException(status_code=404, detail="Mode not found")
+    normalized_mode = (mode or "").strip().lower()
+    if normalized_mode not in MODE_LABELS:
+        normalized_mode = DEFAULT_MODE
+    mode = normalized_mode
 
     if session_id:
         session = get_session(session_id)
@@ -216,7 +204,7 @@ async def api_prepare_scenario(
     if not session or session["user_id"] != user["id"]:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    if mode not in {"sandbox", "real_case", "reps"}:
+    if mode not in {"sandbox", "real_case"}:
         raise HTTPException(status_code=400, detail="This mode does not support scenario preparation")
 
     raw_text = ""
