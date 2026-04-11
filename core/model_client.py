@@ -319,7 +319,8 @@ class ModelClient:
             f"Mode guidance: {MODE_GUIDANCE.get('sandbox', '')}\n\n"
             f"Scenario context:\n{context_text}\n\n"
             "---\n"
-            "Negotiation simulation: reply with exactly one in-character spoken line. "
+            "Negotiation simulation: reply with exactly one in-character spoken line (how a real person would say it aloud). "
+            "Sound human: natural wording, contractions OK, light emotion when it fits—avoid stiff corporate script or numbered lists. "
             "Stay consistent with the scenario; do not invent contradictory facts. "
             "Build on the conversation history; avoid repeating the same question or offer verbatim; advance the discussion. "
             "No role labels in your line, no bullet lists, no meta-commentary."
@@ -350,11 +351,13 @@ class ModelClient:
         is_buyer = i % 2 == 0
         role_block = (
             "\n\nYou are the BUYER / CUSTOMER. "
-            "Respond naturally to the latest user message (Covestro sales, or the meeting-start cue)."
+            "Respond naturally to the latest user message (Covestro sales, or the meeting-start cue). "
+            "Speak like a real procurement or plant manager: direct, sometimes pressed for time—not a policy document."
             if is_buyer
             else "\n\nYou are the COVESTRO B2B SALES representative. "
             "Respond naturally to the latest user message (what the buyer said). "
-            "Apply margin discipline, max 45-day payment, and value-defense from the system rules above."
+            "Be professional but human (conversational, not robotic); still apply margin discipline, max 45-day payment, "
+            "and value-defense from the system rules above."
         )
         system_full = base_context + role_block
         buyer_opening_cue = self._buyer_opening_cue()

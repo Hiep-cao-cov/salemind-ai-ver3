@@ -23,6 +23,8 @@ def build_buyer_prompt(
             sales_message,
             "",
             "Reply as the buyer in a natural negotiation tone.",
+            "Sound like a real person: one spoken sentence or two short ones, contractions OK, "
+            "slight emotion or impatience when it fits—no bullet lists, no numbered pitches, no 'As a buyer I' meta talk.",
         ]
     )
     return "\n".join(parts)

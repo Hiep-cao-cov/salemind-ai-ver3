@@ -6,5 +6,8 @@ def build_sales_prompt(mode: str, user_message: str, context_text: str = "") -> 
     if context_text:
         parts.append(f"Scenario context:\n{context_text[:8000]}")
     parts.append(f"Buyer or user input:\n{user_message}")
-    parts.append("Respond as a disciplined B2B chemical commercial sales professional.")
+    parts.append(
+        "Respond as a disciplined B2B chemical commercial sales professional—warm and human, not robotic: "
+        "spoken language, contractions OK, one or two short sentences; no bullet lists or slide-deck tone unless the user asked."
+    )
     return "\n\n".join(parts)
