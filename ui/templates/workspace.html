@@ -25,7 +25,11 @@
           class="workspace-main"
           data-mode="{{ mode }}"
           data-session="{{ session_id }}"
-          data-has-context="{{ 'true' if has_context else 'false' }}">
+          data-has-context="{{ 'true' if has_context else 'false' }}"
+          data-practice-role="{{ practice_role }}"
+          data-analyzer-line-no-llm="{{ analyzer_line_no_llm|e }}"
+          data-analyzer-line-local="{{ analyzer_line_local|e }}"
+          data-analyzer-line-cloud="{{ analyzer_line_cloud|e }}">
 
     <!-- HEADER -->
     <div class="workspace-header premium-header">
@@ -56,6 +60,14 @@
       </div>
 
       <div class="action-cluster">
+        {% if mode == 'real_case' %}
+        <button type="button"
+                class="pill-btn finish-negotiation-btn"
+                data-open-finish-dialog
+                {% if not has_context %}disabled{% endif %}>
+          Finish
+        </button>
+        {% endif %}
         <button class="pill-btn" data-action="help">Help</button>
         {% if mode == 'sandbox' %}
         <button class="pill-btn" data-action="auto">Auto</button>
@@ -69,6 +81,39 @@
     {% if mode in ['sandbox','real_case'] %}
     <section class="panel scenario-panel" id="scenario-setup-panel">
 
+      {% if mode == 'real_case' %}
+      <div class="practice-role-field practice-role-full-width practice-role-above-toolbar">
+        <div class="practice-role-heading">
+          <label id="practice-role-label" class="practice-role-label-text">You play as</label>
+          <span class="practice-role-sub">Choose one role for this session</span>
+        </div>
+        <div class="practice-role-radios" role="radiogroup" aria-labelledby="practice-role-label">
+          <label class="radio-row radio-row-seller {% if practice_role == 'seller' %}radio-row-checked{% endif %}">
+            <input type="radio"
+                   name="practice_role_choice"
+                   value="seller"
+                   {% if practice_role == 'seller' %}checked{% endif %}>
+            <span class="radio-row-accent" aria-hidden="true"></span>
+            <span class="radio-row-body">
+              <span class="radio-row-kicker">Covestro side</span>
+              <span class="radio-row-title">Seller (Covestro sales)</span>
+            </span>
+          </label>
+          <label class="radio-row radio-row-buyer {% if practice_role == 'buyer' %}radio-row-checked{% endif %}">
+            <input type="radio"
+                   name="practice_role_choice"
+                   value="buyer"
+                   {% if practice_role == 'buyer' %}checked{% endif %}>
+            <span class="radio-row-accent" aria-hidden="true"></span>
+            <span class="radio-row-body">
+              <span class="radio-row-kicker">Customer side</span>
+              <span class="radio-row-title">Buyer (customer)</span>
+            </span>
+          </label>
+        </div>
+      </div>
+      {% endif %}
+
       <div class="scenario-toolbar">
         <div>
           <div class="eyebrow">
@@ -76,6 +121,13 @@
           </div>
           <h3>Scenario Setup</h3>
           <p class="small-text">Choose scenario source then click Analyze.</p>
+          {% if mode in ['sandbox', 'real_case'] %}
+          <p class="model-info-line">
+            <span class="model-info-label">Scenario analysis</span>
+            <span class="model-info-value" id="model-info-value">{{ analyzer_line_no_llm }}</span>
+          </p>
+          <p class="field-hint model-info-hint">Negotiation chat uses: <strong>{{ model_info.label }}</strong></p>
+          {% endif %}
         </div>
 
         {% if has_context %}
@@ -113,12 +165,13 @@
 
           <!-- ANALYZER -->
           <div>
-            <label>Select Model</label>
+            <label>Model LLM Select</label>
             <select name="analyzer_mode" id="analyzer-mode">
               <option value="cloud_model">Cloud Model</option>
               <option value="local_model">Local Model</option>
               <option value="no_llm" selected>No LLM</option>
             </select>
+            <p class="field-hint">Analyzer style for Step 1; the line above updates when you change this.</p>
           </div>
 
           <!-- LIBRARY -->
@@ -253,11 +306,21 @@
 
         <div class="composer-footer">
           <div class="small-text">{{ current_user.display_name }}</div>
-          <button id="send-btn"
-                  class="primary-btn"
-                  {% if not has_context %}disabled{% endif %}>
-            Send
-          </button>
+          <div class="composer-actions">
+            {% if mode == 'real_case' %}
+            <button type="button"
+                    class="secondary-btn finish-negotiation-btn composer-finish-btn"
+                    data-open-finish-dialog
+                    {% if not has_context %}disabled{% endif %}>
+              Finish
+            </button>
+            {% endif %}
+            <button id="send-btn"
+                    class="primary-btn"
+                    {% if not has_context %}disabled{% endif %}>
+              Send
+            </button>
+          </div>
         </div>
 
       </div>
@@ -273,6 +336,24 @@
   <div class="progress-bar"><span id="progress-fill"></span></div>
   <div id="progress-label" class="progress-label">Ready</div>
 </div>
+
+{% if mode == 'real_case' %}
+<dialog id="finish-negotiation-dialog" class="finish-dialog">
+  <div class="finish-dialog-panel">
+    <h3 class="finish-dialog-title">End this practice round?</h3>
+    <p class="finish-dialog-copy">Confirm to stop negotiating. You can analyze again anytime.</p>
+    <div class="finish-dialog-actions">
+      <button type="button" class="secondary-btn" id="finish-dialog-cancel">Cancel</button>
+      <button type="button" class="primary-btn finish-option-btn" data-finish-resolution="keep_scenario">
+        Keep scenario, clear chat
+      </button>
+      <button type="button" class="primary-btn finish-option-btn finish-option-danger" data-finish-resolution="full_reset">
+        Fresh start (clear all)
+      </button>
+    </div>
+  </div>
+</dialog>
+{% endif %}
 </div>
 
 {% endblock %}

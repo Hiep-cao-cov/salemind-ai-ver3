@@ -4,8 +4,14 @@ from core.agents.auditor import audit_response
 from core.model_client import get_model_client
 
 
-def prepare_scenario(source_type: str, source_name: str, raw_text: str) -> Dict[str, Any]:
-    return get_model_client().analyze_scenario(raw_text, "reps", source_name)
+def prepare_scenario(
+    source_type: str,
+    source_name: str,
+    raw_text: str,
+    *,
+    use_llm: bool = True,
+) -> Dict[str, Any]:
+    return get_model_client().analyze_scenario(raw_text, "reps", source_name, use_llm=use_llm)
 
 
 def run(action: str, payload: Dict[str, str]) -> Dict[str, Any]:

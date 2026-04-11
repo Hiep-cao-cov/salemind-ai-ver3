@@ -101,6 +101,11 @@ def init_db():
         )
         """)
 
+        try:
+            conn.execute("ALTER TABLE sessions ADD COLUMN practice_role TEXT DEFAULT 'buyer'")
+        except sqlite3.OperationalError:
+            pass
+
 
 # =========================
 # USER
@@ -184,6 +189,35 @@ def update_session_mode(session_id, mode_key):
             "UPDATE sessions SET mode_key=?, updated_at=? WHERE session_id=?",
             (mode_key, now_iso(), session_id),
         )
+
+
+def update_session_practice_role(session_id: str, practice_role: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE sessions SET practice_role=?, updated_at=? WHERE session_id=?",
+            (practice_role, now_iso(), session_id),
+        )
+
+
+def delete_messages_for_session_mode(session_id: str, module_key: str, mode_key: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            DELETE FROM messages
+            WHERE session_id=? AND module_key=? AND mode_key=?
+            """,
+            (session_id, module_key, mode_key),
+        )
+
+
+def delete_session_context_row(session_id: str) -> None:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM session_context WHERE session_id=?", (session_id,))
+
+
+def delete_session_files_meta(session_id: str) -> None:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM session_files WHERE session_id=?", (session_id,))
 
 
 # =========================

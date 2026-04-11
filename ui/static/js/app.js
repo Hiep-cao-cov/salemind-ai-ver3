@@ -22,6 +22,47 @@ document.addEventListener('DOMContentLoaded', () => {
   const mode = root.dataset.mode || 'sandbox';
   const sessionId = root.dataset.session || '';
 
+  const getPracticeRole = () => (root.dataset.practiceRole || 'buyer').toLowerCase();
+
+  const setPracticeRole = (role) => {
+    const r = role === 'seller' ? 'seller' : 'buyer';
+    root.dataset.practiceRole = r;
+    document.querySelectorAll('.practice-role-radios input[type="radio"]').forEach((radio) => {
+      radio.checked = radio.value === r;
+    });
+    document.querySelectorAll('.practice-role-radios label.radio-row').forEach((lab) => {
+      const inp = lab.querySelector('input[type="radio"]');
+      lab.classList.toggle('radio-row-checked', Boolean(inp && inp.checked));
+    });
+  };
+
+  const refreshAnalyzerCaption = () => {
+    const el = document.getElementById('model-info-value');
+    const am = document.getElementById('analyzer-mode');
+    if (!el || !am) return;
+    const v = am.value;
+    if (v === 'local_model') {
+      el.textContent = root.dataset.analyzerLineLocal || '';
+    } else if (v === 'cloud_model') {
+      el.textContent = root.dataset.analyzerLineCloud || '';
+    } else {
+      el.textContent = root.dataset.analyzerLineNoLlm || '';
+    }
+  };
+
+  const persistPracticeRole = async (role) => {
+    if (mode !== 'real_case' || !sessionId) return;
+    try {
+      await fetch('/api/session/practice-role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sessionId, practice_role: role }),
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const chatPanel = document.getElementById('chat-panel');
   const input = document.getElementById('message-input');
   const sendBtn = document.getElementById('send-btn');
@@ -51,16 +92,24 @@ document.addEventListener('DOMContentLoaded', () => {
     root.dataset.hasContext = value ? 'true' : 'false';
   };
 
+  const setFinishButtonsDisabled = (disabled) => {
+    document.querySelectorAll('[data-open-finish-dialog]').forEach((btn) => {
+      btn.disabled = disabled;
+    });
+  };
+
   const lockWorkflow = () => {
     if (runBtn) runBtn.disabled = true;
     if (sendBtn) sendBtn.disabled = true;
     if (input) input.disabled = true;
+    setFinishButtonsDisabled(true);
   };
 
   const unlockWorkflow = () => {
     if (runBtn && mode === 'sandbox') runBtn.disabled = false;
     if (sendBtn) sendBtn.disabled = false;
     if (input) input.disabled = false;
+    setFinishButtonsDisabled(false);
   };
 
   const hideSummary = () => {
@@ -80,7 +129,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (role === 'buyer_ai') return 'AI Buyer';
     if (role === 'sales_ai') return 'AI Sales';
     if (role === 'system') return 'System';
-    if (role === 'assistant') return 'AI Assistant';
+    if (role === 'assistant') {
+      if (mode === 'real_case' && getPracticeRole() === 'seller') return 'AI Buyer';
+      if (mode === 'real_case' && getPracticeRole() === 'buyer') return 'AI Sales';
+      return 'AI Assistant';
+    }
     return 'AI Coach';
   };
 
@@ -277,15 +330,20 @@ document.addEventListener('DOMContentLoaded', () => {
     setProgress(18, 'Sending to model...');
 
     try {
+      const chatBody = {
+        session_id: sessionId,
+        mode,
+        message,
+        action
+      };
+      if (mode === 'real_case') {
+        chatBody.practice_role = getPracticeRole();
+      }
+
       const response = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: sessionId,
-          mode,
-          message,
-          action
-        })
+        body: JSON.stringify(chatBody)
       });
 
       if (!response.ok || !response.body) {
@@ -448,8 +506,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  const clearPracticeChatUi = () => {
+    if (!chatPanel) return;
+    chatPanel.innerHTML = `
+      <div id="chat-empty-state" class="chat-empty-state">
+        <div class="empty-state-icon">◈</div>
+        <h4>Ready to continue</h4>
+        <p>Scenario is still loaded.<br>Start a new negotiation thread below.</p>
+      </div>`;
+  };
+
   // Initial state
   refreshScenarioUI();
+  refreshAnalyzerCaption();
+  if (mode === 'real_case') {
+    setPracticeRole(getPracticeRole());
+  }
 
   if (mode === 'sandbox') {
     if (!getHasContext()) {
@@ -461,6 +533,62 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  document.querySelectorAll('.practice-role-radios input[type="radio"]').forEach((radio) => {
+    radio.addEventListener('change', () => {
+      if (!radio.checked) return;
+      const value = radio.value;
+      if (value !== 'buyer' && value !== 'seller') return;
+      setPracticeRole(value);
+      persistPracticeRole(value);
+    });
+  });
+
+  const finishDialog = document.getElementById('finish-negotiation-dialog');
+  const finishCancelBtn = document.getElementById('finish-dialog-cancel');
+
+  document.querySelectorAll('[data-open-finish-dialog]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      finishDialog?.showModal();
+    });
+  });
+
+  finishCancelBtn?.addEventListener('click', () => {
+    finishDialog?.close();
+  });
+
+  document.querySelectorAll('.finish-option-btn[data-finish-resolution]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const resolution = btn.getAttribute('data-finish-resolution');
+      if (!resolution || !sessionId) return;
+      setProgress(30, 'Updating session...');
+      try {
+        const res = await fetch('/api/session/finish-negotiation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sessionId, resolution }),
+        });
+        if (!res.ok) {
+          setProgress(0, 'Could not finish');
+          return;
+        }
+        finishDialog?.close();
+        if (resolution === 'full_reset') {
+          window.location.reload();
+          return;
+        }
+        clearPracticeChatUi();
+        setHasContext(true);
+        unlockWorkflow();
+        showSummary();
+        setProgress(100, 'Chat cleared');
+        resetProgress();
+      } catch (e) {
+        console.error(e);
+        setProgress(0, 'Error');
+      }
+    });
+  });
+
   // Events
   sourceType?.addEventListener('change', () => {
     resetScenarioState();
@@ -468,6 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   analyzerMode?.addEventListener('change', () => {
+    refreshAnalyzerCaption();
     resetScenarioState();
   });
 

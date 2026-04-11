@@ -70,6 +70,12 @@
   gap: 16px;
 }
 
+.workspace-v2 .scenario-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
 .workspace-v2 .workspace-header {
   background: var(--w2-bg);
   border: 1px solid var(--w2-border);
@@ -128,6 +134,241 @@
   background: rgba(255, 255, 255, 0.97);
 }
 
+.workspace-v2 .composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.workspace-v2 .composer-finish-btn {
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+.workspace-v2 .model-info-line {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--w2-text);
+  line-height: 1.45;
+}
+
+.workspace-v2 .model-info-label {
+  color: var(--w2-muted);
+  margin-right: 6px;
+}
+
+.workspace-v2 .model-info-value {
+  font-weight: 700;
+  color: var(--w2-accent);
+  display: block;
+  margin-top: 4px;
+}
+
+.workspace-v2 .model-info-hint {
+  margin-top: 8px;
+}
+
+.workspace-v2 .field-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--w2-muted);
+  line-height: 1.4;
+}
+
+/* ====================== PRACTICE ROLE - ĐÃ TỐI ƯU ====================== */
+.workspace-v2 .practice-role-field {
+  padding: 18px 18px 16px;
+  border-radius: 16px;
+  background: linear-gradient(165deg, #f8fbff 0%, #eef4fc 100%);
+  border: 1px solid #d0e2f5;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.workspace-v2 .practice-role-full-width {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.workspace-v2 .practice-role-above-toolbar {
+  margin-bottom: 18px;
+}
+
+.workspace-v2 .practice-role-heading {
+  margin-bottom: 14px;
+}
+
+.workspace-v2 .practice-role-label-text {
+  display: block;
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--w2-text);
+  letter-spacing: -0.02em;
+}
+
+.workspace-v2 .practice-role-sub {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--w2-muted);
+  font-weight: 500;
+}
+
+/* Phần radio - ĐÃ LÀM HẸP & ĐẸP HƠN */
+.workspace-v2 .practice-role-radios {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 480px;           /* Chiều rộng tối ưu nhất */
+  margin: 0 auto;             /* Căn giữa */
+}
+
+.workspace-v2 .practice-role-radios > .radio-row {
+  display: grid;
+  grid-template-columns: auto 4px 1fr;
+  align-items: start;
+  column-gap: 14px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 17px 20px;
+  border-radius: 16px;
+  border: 1px solid rgba(100, 140, 190, 0.35);
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 2px 10px rgba(16, 45, 90, 0.07);
+}
+
+.workspace-v2 .radio-row:hover {
+  border-color: rgba(29, 95, 209, 0.45);
+  box-shadow: 0 8px 20px rgba(16, 45, 90, 0.12);
+  transform: translateY(-2px);
+}
+
+.workspace-v2 .radio-row-checked {
+  border-color: var(--w2-accent-2);
+  background: linear-gradient(135deg, #ffffff 0%, #f0f6ff 100%);
+  box-shadow: 
+    0 0 0 3px rgba(29, 95, 209, 0.22),
+    0 10px 28px rgba(16, 45, 90, 0.16);
+}
+
+.workspace-v2 .radio-row-seller.radio-row-checked .radio-row-accent {
+  background: linear-gradient(180deg, #1d5fd1 0%, #103d8a 100%);
+}
+
+.workspace-v2 .radio-row-buyer.radio-row-checked .radio-row-accent {
+  background: linear-gradient(180deg, #0d9488 0%, #0f766e 100%);
+}
+
+.workspace-v2 .radio-row input[type="radio"] {
+  margin-top: 6px;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--w2-accent);
+  flex-shrink: 0;
+  grid-column: 1;
+}
+
+.workspace-v2 .radio-row-accent {
+  grid-column: 2;
+  width: 4px;
+  align-self: stretch;
+  min-height: 48px;
+  border-radius: 4px;
+  background: rgba(100, 140, 190, 0.25);
+  transition: background 0.2s ease;
+}
+
+.workspace-v2 .radio-row-body {
+  grid-column: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.workspace-v2 .radio-row-kicker {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--w2-muted);
+}
+
+.workspace-v2 .radio-row-checked .radio-row-kicker {
+  color: var(--w2-accent);
+}
+
+.workspace-v2 .radio-row-buyer.radio-row-checked .radio-row-kicker {
+  color: #0f766e;
+}
+
+.workspace-v2 .radio-row-title {
+  font-weight: 800;
+  color: var(--w2-text);
+  font-size: 15px;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+/* ====================== CÁC PHẦN KHÁC GIỮ NGUYÊN ====================== */
+
+.workspace-v2 .finish-negotiation-btn {
+  border-color: #c9a227;
+  color: #7a5a00;
+  background: #fff9e6;
+}
+
+.workspace-v2 .finish-dialog {
+  border: none;
+  border-radius: var(--w2-radius);
+  padding: 0;
+  max-width: min(440px, 94vw);
+  box-shadow: 0 20px 50px rgba(16, 35, 62, 0.25);
+}
+
+.workspace-v2 .finish-dialog::backdrop {
+  background: rgba(15, 42, 74, 0.45);
+}
+
+.workspace-v2 .finish-dialog-panel {
+  padding: 22px;
+}
+
+.workspace-v2 .finish-dialog-title {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+  color: var(--w2-text);
+}
+
+.workspace-v2 .finish-dialog-copy {
+  margin: 0 0 18px;
+  font-size: 14px;
+  color: var(--w2-muted);
+  line-height: 1.45;
+}
+
+.workspace-v2 .finish-dialog-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.workspace-v2 .finish-option-danger {
+  background: #b91c1c;
+  border-color: #991b1b;
+  color: #fff;
+}
+
+.workspace-v2 .finish-option-danger:hover {
+  filter: brightness(1.05);
+}
+
 @media (max-width: 1024px) {
   .workspace-v2 .workspace-layout {
     padding: 0 16px 96px;
@@ -139,5 +380,9 @@
   .workspace-v2 .scenario-toolbar {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .workspace-v2 .practice-role-radios {
+    max-width: 100%;
   }
 }

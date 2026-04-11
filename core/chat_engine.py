@@ -29,11 +29,18 @@ def run_chat(mode: str, action: str, payload: Dict[str, str]) -> Dict[str, Any]:
     return result
 
 
-def prepare_mode_context(mode: str, source_type: str, source_name: str, raw_text: str) -> Dict[str, Any]:
+def prepare_mode_context(
+    mode: str,
+    source_type: str,
+    source_name: str,
+    raw_text: str,
+    *,
+    use_llm: bool = True,
+) -> Dict[str, Any]:
     preparer = MODE_PREPARERS.get(mode)
     if not preparer:
         raise ValueError(f"Mode {mode} does not support scenario preparation")
-    return preparer(source_type, source_name, raw_text)
+    return preparer(source_type, source_name, raw_text, use_llm=use_llm)
 
 
 def run_sandbox_simulation(analysis: Dict[str, Any], turns: int = 8) -> Dict[str, Any]:
@@ -49,13 +56,13 @@ def prepare_mode_context_v2(
     analyzer_mode = (analyzer_mode or "no_llm").strip().lower()
 
     if analyzer_mode == "no_llm":
-        return prepare_mode_context(mode, source_type, source_name, raw_text)
+        return prepare_mode_context(mode, source_type, source_name, raw_text, use_llm=False)
 
     # For AI source, keep the scenario generation workflow enabled even when
     # cloud model is selected. This ensures the model can create scenario text
     # and return summary/key points in one step (OpenAI/Bedrock path).
     if analyzer_mode == "cloud_model" and source_type == "ai":
-        return prepare_mode_context(mode, source_type, source_name, raw_text)
+        return prepare_mode_context(mode, source_type, source_name, raw_text, use_llm=True)
 
     if analyzer_mode == "local_model":
         return analyze_with_local_model(

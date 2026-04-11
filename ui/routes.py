@@ -5,7 +5,8 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
-from core.chat_engine import prepare_mode_context, prepare_mode_context_v2, run_chat, run_sandbox_simulation
+from core.chat_engine import prepare_mode_context_v2, run_chat, run_sandbox_simulation
+from core.model_client import get_active_model_info, scenario_analyzer_display_line
 from core.scenario_store import get_scenario_by_id, load_scenarios
 from modules.manager.dashboard import load_dashboard_data
 
@@ -14,12 +15,16 @@ from utils.db import (
     add_message,
     add_messages,
     create_session,
+    delete_messages_for_session_mode,
+    delete_session_context_row,
+    delete_session_files_meta,
     get_manager_analytics,
     get_session,
     get_session_context,
     get_session_detail,
     list_recent_sessions_for_user,
     update_session_mode,
+    update_session_practice_role,
     upsert_session_context,
     upsert_user,
 )
@@ -158,6 +163,11 @@ def workspace(request: Request, mode: str, session_id: str | None = None):
             title=f"{MODE_LABELS[mode]} Session",
         )
 
+    sess_row = get_session(session_id) or {}
+    practice_role = str(sess_row.get("practice_role") or "buyer").lower()
+    if practice_role not in ("buyer", "seller"):
+        practice_role = "buyer"
+
     detail = get_session_detail(session_id)
     mode_context = _serialize_context(detail.get("context"))
 
@@ -173,6 +183,11 @@ def workspace(request: Request, mode: str, session_id: str | None = None):
             "scenario_library": load_scenarios(),
             "mode_context": mode_context,
             "has_context": bool(mode_context and mode_context.get("summary")),
+            "model_info": get_active_model_info(),
+            "practice_role": practice_role,
+            "analyzer_line_no_llm": scenario_analyzer_display_line("no_llm"),
+            "analyzer_line_local": scenario_analyzer_display_line("local_model"),
+            "analyzer_line_cloud": scenario_analyzer_display_line("cloud_model"),
         }
     )
 
@@ -282,6 +297,52 @@ async def api_prepare_scenario(
 
 
 # =========================
+# SESSION — PRACTICE ROLE
+# =========================
+
+@router.post("/api/session/practice-role")
+async def api_session_practice_role(request: Request):
+    user = _sync_db_user(request)
+    payload = await request.json()
+    session_id = str(payload.get("session_id", "")).strip()
+    role = str(payload.get("practice_role", "")).strip().lower()
+    if role not in ("buyer", "seller"):
+        raise HTTPException(status_code=400, detail="practice_role must be buyer or seller")
+    if not session_id:
+        raise HTTPException(status_code=400, detail="Session ID is required")
+    session = get_session(session_id)
+    if not session or session["user_id"] != user["id"]:
+        raise HTTPException(status_code=404, detail="Session not found")
+    update_session_practice_role(session_id, role)
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/session/finish-negotiation")
+async def api_finish_negotiation(request: Request):
+    user = _sync_db_user(request)
+    payload = await request.json()
+    session_id = str(payload.get("session_id", "")).strip()
+    resolution = str(payload.get("resolution", "")).strip().lower()
+    if resolution not in ("keep_scenario", "full_reset"):
+        raise HTTPException(
+            status_code=400,
+            detail="resolution must be keep_scenario or full_reset",
+        )
+    if not session_id:
+        raise HTTPException(status_code=400, detail="Session ID is required")
+    session = get_session(session_id)
+    if not session or session["user_id"] != user["id"]:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    delete_messages_for_session_mode(session_id, "module_2", "real_case")
+    if resolution == "full_reset":
+        delete_session_context_row(session_id)
+        delete_session_files_meta(session_id)
+
+    return JSONResponse({"ok": True, "resolution": resolution})
+
+
+# =========================
 # CHAT STREAM
 # =========================
 
@@ -308,6 +369,16 @@ async def api_chat_stream(request: Request):
     if not session or session["user_id"] != user["id"]:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    practice_in = str(payload.get("practice_role", "") or "").strip().lower()
+    if practice_in in ("buyer", "seller"):
+        practice_role = practice_in
+        if mode == "real_case":
+            update_session_practice_role(session_id, practice_role)
+    else:
+        practice_role = str(session.get("practice_role") or "buyer").lower()
+        if practice_role not in ("buyer", "seller"):
+            practice_role = "buyer"
+
     mode_context = get_session_context(session_id, mode)
     analysis = mode_context.get("analysis", {}) if mode_context else {}
 
@@ -330,7 +401,11 @@ async def api_chat_stream(request: Request):
     if message:
         add_message(session_id, "module_2", mode, "user", message)
 
-    result = run_chat(mode, action, {"message": message, "context_text": context_text})
+    chat_payload: Dict[str, str] = {"message": message, "context_text": context_text}
+    if mode == "real_case":
+        chat_payload["practice_role"] = practice_role
+
+    result = run_chat(mode, action, chat_payload)
 
     reply = str(result["reply"])
     audit_payload = result.get("audit") if isinstance(result.get("audit"), dict) else {}

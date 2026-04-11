@@ -82,7 +82,14 @@ class ModelClient:
 
         return self._fallback_text(prompt)
 
-    def analyze_scenario(self, raw_text: str, mode_key: str, source_name: str = "") -> Dict[str, Any]:
+    def analyze_scenario(
+        self,
+        raw_text: str,
+        mode_key: str,
+        source_name: str = "",
+        *,
+        use_llm: bool = True,
+    ) -> Dict[str, Any]:
         cleaned = raw_text.strip()
         if not cleaned:
             return {
@@ -90,6 +97,15 @@ class ModelClient:
                 "summary": "No scenario content was provided.",
                 "key_points": [],
                 "negotiation_points": [],
+                "generated_scenario": "",
+            }
+
+        if not use_llm:
+            return {
+                "title": source_name or self._derive_title(cleaned),
+                "summary": self._fallback_summary(cleaned),
+                "key_points": self._fallback_key_points(cleaned),
+                "negotiation_points": self._fallback_negotiation_points(cleaned),
                 "generated_scenario": "",
             }
 
@@ -121,8 +137,14 @@ class ModelClient:
             "generated_scenario": "",
         }
 
-    def create_scenario(self, brief: str, mode_key: str) -> Dict[str, Any]:
+    def create_scenario(self, brief: str, mode_key: str, *, use_llm: bool = True) -> Dict[str, Any]:
         prompt_brief = brief.strip() or "Create a realistic B2B chemical negotiation scenario involving price pressure, payment terms, technical support, and competitor pressure."
+        if not use_llm:
+            generated = self._fallback_generated_scenario(prompt_brief)
+            analysis = self.analyze_scenario(generated, mode_key, "AI Generated Scenario", use_llm=False)
+            analysis["generated_scenario"] = generated
+            return analysis
+
         provider = self.provider
         generated = ""
         if provider in {"openai", "bedrock"}:
@@ -135,7 +157,7 @@ class ModelClient:
             generated = self.complete(prompt, temperature=0.5, max_tokens=700)
         if not generated:
             generated = self._fallback_generated_scenario(prompt_brief)
-        analysis = self.analyze_scenario(generated, mode_key, "AI Generated Scenario")
+        analysis = self.analyze_scenario(generated, mode_key, "AI Generated Scenario", use_llm=True)
         analysis["generated_scenario"] = generated
         return analysis
 
@@ -277,6 +299,46 @@ class ModelClient:
         if turns >= 10:
             transcript.append({"role": "sales_ai", "text": "Yes, if forecast commitment is real, we can discuss service prioritization or structured implementation support instead of blunt discounting."})
         return transcript[:turns]
+
+
+def get_active_model_info() -> Dict[str, str]:
+    """
+    Human-readable model routing for UI (scenario analysis and chat use the same ModelClient).
+    """
+    client = ModelClient()
+    provider = client.provider
+    if provider == "openai":
+        model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        return {
+            "provider": provider,
+            "label": f"OpenAI — {model}",
+            "model_id": model,
+        }
+    if provider == "bedrock":
+        model_id = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
+        return {
+            "provider": provider,
+            "label": f"Amazon Bedrock — {model_id}",
+            "model_id": model_id,
+        }
+    return {
+        "provider": "fallback",
+        "label": "Fallback (no API keys configured)",
+        "model_id": "",
+    }
+
+
+def scenario_analyzer_display_line(analyzer_mode: str) -> str:
+    """
+    User-facing line for Step 1: reflects the analyzer dropdown, not only env API keys.
+    """
+    am = (analyzer_mode or "no_llm").strip().lower()
+    if am == "no_llm":
+        return "No LLM — heuristic summary only (no API call for scenario analysis)"
+    if am == "local_model":
+        return "Local analyzer — stub placeholder (no model call yet)"
+    cloud = get_active_model_info()["label"]
+    return f"Cloud structured analysis — {cloud}"
 
 
 @lru_cache(maxsize=1)

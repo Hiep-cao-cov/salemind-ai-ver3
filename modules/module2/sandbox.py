@@ -5,10 +5,16 @@ from core.agents.sales import sales_auto, sales_help
 from core.model_client import get_model_client
 
 
-def prepare_scenario(source_type: str, source_name: str, raw_text: str) -> Dict[str, Any]:
+def prepare_scenario(
+    source_type: str,
+    source_name: str,
+    raw_text: str,
+    *,
+    use_llm: bool = True,
+) -> Dict[str, Any]:
     if source_type == "ai":
-        return get_model_client().create_scenario(raw_text, "sandbox")
-    return get_model_client().analyze_scenario(raw_text, "sandbox", source_name)
+        return get_model_client().create_scenario(raw_text, "sandbox", use_llm=use_llm)
+    return get_model_client().analyze_scenario(raw_text, "sandbox", source_name, use_llm=use_llm)
 
 
 def simulate(analysis: Dict[str, Any], turns: int = 8) -> Dict[str, Any]:
