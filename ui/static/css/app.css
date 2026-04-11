@@ -1075,6 +1075,27 @@ td {
   border: 1px solid #fed7aa;
 }
 
+.message-row.mentor {
+  justify-content: flex-start;
+  margin: 2px 0 10px 10px;
+  padding-left: 8px;
+  border-left: 3px solid #7c3aed;
+}
+
+.message-row.mentor .bubble {
+  max-width: 92%;
+  background: #faf5ff;
+  border: 1px solid #ddd6fe;
+}
+
+.message-row.mentor .bubble-text.mentor-body {
+  padding-top: 4px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #1e1b4b;
+  word-break: break-word;
+}
+
 .bubble-meta {
   margin-bottom: 8px;
   font-size: 12px;

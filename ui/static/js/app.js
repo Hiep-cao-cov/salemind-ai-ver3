@@ -67,6 +67,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const input = document.getElementById('message-input');
   const sendBtn = document.getElementById('send-btn');
   const runBtn = document.getElementById('run-simulation-btn');
+  const simNextBtn = document.getElementById('sim-next-btn');
+
+  let simApiHist = [];
+  let simInProgress = false;
 
   const form = document.getElementById('scenario-form');
   const sourceType = document.getElementById('source-type');
@@ -98,18 +102,36 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
+  const refreshSandboxSimButtons = () => {
+    if (!runBtn || mode !== 'sandbox') return;
+    if (!getHasContext()) {
+      runBtn.disabled = true;
+      if (simNextBtn) {
+        simNextBtn.disabled = true;
+        simNextBtn.classList.add('hidden');
+      }
+      return;
+    }
+    runBtn.disabled = simInProgress;
+    if (simNextBtn) {
+      simNextBtn.classList.toggle('hidden', !simInProgress);
+      simNextBtn.disabled = !simInProgress || isProcessing;
+    }
+  };
+
   const lockWorkflow = () => {
     if (runBtn) runBtn.disabled = true;
+    if (simNextBtn) simNextBtn.disabled = true;
     if (sendBtn) sendBtn.disabled = true;
     if (input) input.disabled = true;
     setFinishButtonsDisabled(true);
   };
 
   const unlockWorkflow = () => {
-    if (runBtn && mode === 'sandbox') runBtn.disabled = false;
     if (sendBtn) sendBtn.disabled = false;
     if (input) input.disabled = false;
     setFinishButtonsDisabled(false);
+    refreshSandboxSimButtons();
   };
 
   const hideSummary = () => {
@@ -128,6 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (role === 'user') return 'You';
     if (role === 'buyer_ai') return 'AI Buyer';
     if (role === 'sales_ai') return 'AI Sales';
+    if (role === 'mentor') return 'Mentor';
     if (role === 'system') return 'System';
     if (role === 'assistant') {
       if (mode === 'real_case' && getPracticeRole() === 'seller') return 'AI Buyer';
@@ -158,6 +181,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typing) {
       body.innerHTML =
         '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
+    } else if (role === 'mentor') {
+      body.classList.add('mentor-body');
+      body.textContent = String(text || '').trim();
     } else {
       body.textContent = text;
     }
@@ -244,9 +270,10 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const resetScenarioState = () => {
-    lockWorkflow();
     hideSummary();
     setHasContext(false);
+    simApiHist = [];
+    simInProgress = false;
 
     if (generatedScenarioWrap) generatedScenarioWrap.classList.add('hidden');
     if (generatedScenario) generatedScenario.textContent = '';
@@ -256,6 +283,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (summaryTitle) summaryTitle.textContent = '';
     if (summarySource) summarySource.textContent = '';
     if (summaryCopy) summaryCopy.textContent = '';
+
+    unlockWorkflow();
   };
 
   const analyzeScenario = async () => {
@@ -266,14 +295,17 @@ document.addEventListener('DOMContentLoaded', () => {
     setProgress(20, 'Analyzing...');
 
     const formData = new FormData(form);
+    const abortCtrl = new AbortController();
+    const abortTimer = window.setTimeout(() => abortCtrl.abort(), 180000);
 
     try {
       const res = await fetch('/api/scenario/prepare', {
         method: 'POST',
-        body: formData
+        body: formData,
+        signal: abortCtrl.signal
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.ok) {
         setProgress(0, 'Error');
@@ -281,17 +313,20 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       renderSummary(data.context);
+      simApiHist = [];
+      simInProgress = false;
 
       if (scenarioBrief) scenarioBrief.classList.add('hidden');
 
-      unlockWorkflow();
       setProgress(100, 'Scenario ready');
       resetProgress();
     } catch (e) {
       console.error(e);
-      setProgress(0, 'Error');
+      setProgress(0, e?.name === 'AbortError' ? 'Timed out — try No LLM or shorter text' : 'Error');
     } finally {
+      window.clearTimeout(abortTimer);
       isProcessing = false;
+      unlockWorkflow();
     }
   };
 
@@ -317,7 +352,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (action === 'auto' && mode === 'sandbox') {
       if (!getHasContext()) return;
-      await runSimulation();
+      if (simInProgress) {
+        await nextDemoSimulationTurn();
+      } else {
+        await startDemoSimulation();
+      }
       return;
     }
 
@@ -425,13 +464,17 @@ document.addEventListener('DOMContentLoaded', () => {
     formData.set('source_type', 'paste');
     formData.set('content', message);
 
+    const abortCtrl = new AbortController();
+    const abortTimer = window.setTimeout(() => abortCtrl.abort(), 180000);
+
     try {
       const res = await fetch('/api/scenario/prepare', {
         method: 'POST',
-        body: formData
+        body: formData,
+        signal: abortCtrl.signal
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.ok) {
         setProgress(0, 'Error');
@@ -439,70 +482,137 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       renderSummary(data.context);
-      unlockWorkflow();
+      simApiHist = [];
+      simInProgress = false;
 
       setProgress(100, 'Scenario ready');
       resetProgress();
     } catch (err) {
       console.error(err);
-      setProgress(0, 'Error');
+      setProgress(0, err?.name === 'AbortError' ? 'Timed out — try No LLM or shorter text' : 'Error');
     } finally {
+      window.clearTimeout(abortTimer);
       isProcessing = false;
+      unlockWorkflow();
     }
   };
 
-  const runSimulation = async () => {
-    if (isProcessing) return;
-    isProcessing = true;
+  const DEMO_TURNS = 18;
 
-    setProgress(25, 'Running simulation...');
+  /** One model call = one negotiation line; must hit /simulate-step (not legacy /simulate). */
+  const fetchSandboxSimulateStep = async (apiHistPayload) => {
+    const res = await fetch('/api/sandbox/simulate-step', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: sessionId,
+        turns: DEMO_TURNS,
+        api_hist: apiHistPayload,
+        mentor: true
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (Array.isArray(data.transcript) && !Object.prototype.hasOwnProperty.call(data, 'item')) {
+      console.error(
+        '[DEMO] Stale client: received full /simulate payload. Hard refresh (Ctrl+Shift+R) to load app.js with step-by-step DEMO.'
+      );
+      return {
+        ok: false,
+        staleClient: true,
+        data
+      };
+    }
+
+    if (!res.ok || !data.ok) {
+      return { ok: false, data };
+    }
+
+    return { ok: true, data };
+  };
+
+  const startDemoSimulation = async () => {
+    if (isProcessing || mode !== 'sandbox') return;
+    isProcessing = true;
+    refreshSandboxSimButtons();
+    setProgress(28, 'Starting DEMO (turn 1)...');
 
     try {
-      const res = await fetch('/api/sandbox/simulate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId, turns: 8 })
-      });
+      if (chatPanel) chatPanel.innerHTML = '';
+      hideChatEmptyState();
+      simApiHist = [];
+      simInProgress = true;
+      refreshSandboxSimButtons();
 
-      const data = await res.json();
+      const { ok, data, staleClient } = await fetchSandboxSimulateStep([]);
 
-      if (!res.ok) {
-        setProgress(0, 'Simulation failed');
+      if (!ok) {
+        simInProgress = false;
+        simApiHist = [];
+        setProgress(0, staleClient ? 'Hard refresh page (Ctrl+Shift+R)' : 'Simulation failed');
+        refreshSandboxSimButtons();
         return;
       }
 
-      if (chatPanel) {
-        chatPanel.innerHTML = '';
+      simApiHist = data.api_hist || [];
+      if (data.item) {
+        appendMessage(data.item.role, data.item.text || '');
       }
-      hideChatEmptyState();
-
-      const transcript = data.transcript || [];
-      for (let i = 0; i < transcript.length; i += 1) {
-        const msg = transcript[i];
-        const text = msg.text || msg.content || '';
-        appendMessage(msg.role, text);
-
-        if (chatPanel) chatPanel.scrollTop = chatPanel.scrollHeight;
-
-        await new Promise((resolve) => setTimeout(resolve, 220));
-
-        setProgress(
-          Math.min(95, 25 + Math.floor(((i + 1) / Math.max(transcript.length, 1)) * 65)),
-          'Animating negotiation...'
-        );
+      if (data.mentor_insight && String(data.mentor_insight).trim()) {
+        appendMessage('mentor', String(data.mentor_insight).trim());
       }
-
-      if (data.audit?.summary) {
+      if (data.done && data.audit?.summary) {
         appendMessage('system', data.audit.summary, data.audit.summary);
+        simInProgress = false;
       }
 
-      setProgress(100, 'Simulation complete');
+      setProgress(100, data.done ? 'DEMO complete' : 'Press Next turn to continue');
+      resetProgress();
+    } catch (e) {
+      console.error(e);
+      simInProgress = false;
+      simApiHist = [];
+      setProgress(0, 'Error');
+    } finally {
+      isProcessing = false;
+      refreshSandboxSimButtons();
+    }
+  };
+
+  const nextDemoSimulationTurn = async () => {
+    if (isProcessing || mode !== 'sandbox' || !simInProgress) return;
+    isProcessing = true;
+    refreshSandboxSimButtons();
+    setProgress(35, 'Generating next turn...');
+
+    try {
+      const { ok, data, staleClient } = await fetchSandboxSimulateStep(simApiHist);
+
+      if (!ok) {
+        setProgress(0, staleClient ? 'Hard refresh page (Ctrl+Shift+R)' : 'Simulation failed');
+        return;
+      }
+
+      simApiHist = data.api_hist || simApiHist;
+      if (data.item) {
+        appendMessage(data.item.role, data.item.text || '');
+      }
+      if (data.mentor_insight && String(data.mentor_insight).trim()) {
+        appendMessage('mentor', String(data.mentor_insight).trim());
+      }
+      if (data.done && data.audit?.summary) {
+        appendMessage('system', data.audit.summary, data.audit.summary);
+        simInProgress = false;
+      }
+
+      setProgress(100, data.done ? 'DEMO complete' : 'Press Next turn to continue');
       resetProgress();
     } catch (e) {
       console.error(e);
       setProgress(0, 'Error');
     } finally {
       isProcessing = false;
+      refreshSandboxSimButtons();
     }
   };
 
@@ -531,6 +641,7 @@ document.addEventListener('DOMContentLoaded', () => {
       unlockWorkflow();
       showSummary();
     }
+    refreshSandboxSimButtons();
   }
 
   document.querySelectorAll('.practice-role-radios input[type="radio"]').forEach((radio) => {
@@ -577,6 +688,11 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
         clearPracticeChatUi();
+        if (mode === 'sandbox') {
+          simApiHist = [];
+          simInProgress = false;
+          refreshSandboxSimButtons();
+        }
         setHasContext(true);
         unlockWorkflow();
         showSummary();
@@ -609,8 +725,16 @@ document.addEventListener('DOMContentLoaded', () => {
     streamChat('chat');
   });
 
-  runBtn?.addEventListener('click', async () => {
-    await runSimulation();
+  runBtn?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    await startDemoSimulation();
+  });
+
+  simNextBtn?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    await nextDemoSimulationTurn();
   });
 
   document.querySelectorAll('[data-action]').forEach((button) => {

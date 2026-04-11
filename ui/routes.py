@@ -5,7 +5,12 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
-from core.chat_engine import prepare_mode_context_v2, run_chat, run_sandbox_simulation
+from core.chat_engine import (
+    prepare_mode_context_v2,
+    run_chat,
+    run_sandbox_simulation,
+    run_sandbox_simulation_step,
+)
 from core.model_client import get_active_model_info, scenario_analyzer_display_line
 from core.scenario_store import get_scenario_by_id, load_scenarios
 from modules.manager.dashboard import load_dashboard_data
@@ -424,13 +429,97 @@ async def api_chat_stream(request: Request):
 # SANDBOX SIMULATION
 # =========================
 
+
+def _validate_sim_api_hist(raw: Any) -> List[Dict[str, str]]:
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise HTTPException(status_code=400, detail="api_hist must be a list")
+    if len(raw) > 44:
+        raise HTTPException(status_code=400, detail="api_hist too long")
+    out: List[Dict[str, str]] = []
+    for m in raw:
+        if not isinstance(m, dict):
+            raise HTTPException(status_code=400, detail="api_hist entries must be objects")
+        r = m.get("role")
+        c = m.get("content", "")
+        if r not in ("user", "assistant"):
+            raise HTTPException(status_code=400, detail="Invalid message role in api_hist")
+        if not isinstance(c, str):
+            c = str(c)
+        if len(c) > 12000:
+            raise HTTPException(status_code=400, detail="Message content too long")
+        out.append({"role": r, "content": c})
+    if len(out) % 2 != 0:
+        raise HTTPException(status_code=400, detail="api_hist must have even length")
+    for idx, msg in enumerate(out):
+        want = "user" if idx % 2 == 0 else "assistant"
+        if msg["role"] != want:
+            raise HTTPException(
+                status_code=400,
+                detail="api_hist must alternate user/assistant starting with user",
+            )
+    return out
+
+
+@router.post("/api/sandbox/simulate-step")
+async def api_sandbox_simulate_step(request: Request):
+    user = _sync_db_user(request)
+    payload = await request.json()
+
+    session_id = str(payload.get("session_id", "")).strip()
+    turns = int(payload.get("turns", 18))
+
+    if not session_id:
+        raise HTTPException(status_code=400, detail="Session ID is required")
+
+    session = get_session(session_id)
+    if not session or session["user_id"] != user["id"]:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    mode_context = get_session_context(session_id, "sandbox")
+    if not mode_context:
+        raise HTTPException(status_code=400, detail="Prepare a scenario first")
+
+    api_hist = _validate_sim_api_hist(payload.get("api_hist"))
+    analysis = mode_context.get("analysis", {})
+    mentor_flag = payload.get("mentor", True)
+    if isinstance(mentor_flag, str):
+        mentor_flag = mentor_flag.strip().lower() in ("1", "true", "yes", "on")
+    mentor_enabled = bool(mentor_flag)
+
+    result = run_sandbox_simulation_step(
+        analysis, api_hist, turns=turns, mentor=mentor_enabled
+    )
+
+    if result.get("item"):
+        item = result["item"]
+        add_message(session_id, "module_2", "sandbox", item["role"], item["text"])
+
+    insight = result.get("mentor_insight")
+    if insight and str(insight).strip():
+        add_message(session_id, "module_2", "sandbox", "mentor", str(insight).strip())
+
+    if result.get("item") and result.get("done") and result.get("audit"):
+        add_message(
+            session_id,
+            "module_2",
+            "sandbox",
+            "system",
+            result["audit"]["summary"],
+            audit=result["audit"],
+        )
+
+    return JSONResponse(result)
+
+
 @router.post("/api/sandbox/simulate")
 async def api_sandbox_simulate(request: Request):
     user = _sync_db_user(request)
     payload = await request.json()
 
     session_id = str(payload.get("session_id", "")).strip()
-    turns = int(payload.get("turns", 8))
+    turns = int(payload.get("turns", 18))
 
     if not session_id:
         raise HTTPException(status_code=400, detail="Session ID is required")

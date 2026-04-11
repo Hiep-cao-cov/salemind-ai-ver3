@@ -117,3 +117,162 @@
 2026-04-11 10:34:14,364 | INFO | core.model_client | Calling model provider=openai
 2026-04-11 11:00:10,990 | INFO | app | Application started and database initialized.
 2026-04-11 11:05:53,159 | INFO | app | Application started and database initialized.
+2026-04-11 11:08:10,709 | INFO | app | Application started and database initialized.
+2026-04-11 11:09:56,537 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 11:10:40,829 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 11:12:18,989 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 11:12:38,208 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 11:13:44,131 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 11:14:06,784 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 11:16:02,348 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 11:16:09,347 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 11:16:27,977 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 11:28:47,377 | INFO | app | Application started and database initialized.
+2026-04-11 11:28:50,018 | INFO | app | Application started and database initialized.
+2026-04-11 11:28:55,090 | INFO | app | Application started and database initialized.
+2026-04-11 11:34:44,003 | INFO | app | Application started and database initialized.
+2026-04-11 11:34:51,453 | INFO | app | Application started and database initialized.
+2026-04-11 11:34:55,591 | INFO | app | Application started and database initialized.
+2026-04-11 11:35:02,020 | INFO | app | Application started and database initialized.
+2026-04-11 20:43:10,896 | INFO | app | Application started and database initialized.
+2026-04-11 20:43:57,948 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:44:04,780 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:44:08,819 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:44:12,014 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:44:15,913 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:44:19,240 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:44:23,548 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:44:27,924 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:44:31,893 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:44:34,737 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:44:38,808 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:44:41,479 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:44:45,620 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:44:48,926 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:44:52,517 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:44:55,065 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:44:57,924 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:45:01,461 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:46:20,761 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:46:53,736 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:51:34,369 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 20:51:40,735 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 21:46:13,964 | INFO | app | Application started and database initialized.
+2026-04-11 21:46:23,361 | INFO | app | Application started and database initialized.
+2026-04-11 21:56:23,422 | INFO | app | Application started and database initialized.
+2026-04-11 21:56:54,119 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 21:57:03,063 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 21:57:24,942 | INFO | core.model_client | Calling model provider=openai (chat turns=2)
+2026-04-11 21:57:28,275 | INFO | core.model_client | Calling model provider=openai (chat turns=4)
+2026-04-11 21:57:30,885 | INFO | core.model_client | Calling model provider=openai (chat turns=6)
+2026-04-11 21:57:33,853 | INFO | core.model_client | Calling model provider=openai (chat turns=8)
+2026-04-11 21:57:36,092 | INFO | core.model_client | Calling model provider=openai (chat turns=10)
+2026-04-11 21:57:41,281 | INFO | core.model_client | Calling model provider=openai (chat turns=12)
+2026-04-11 21:57:43,247 | INFO | core.model_client | Calling model provider=openai (chat turns=14)
+2026-04-11 21:57:46,206 | INFO | core.model_client | Calling model provider=openai (chat turns=16)
+2026-04-11 21:57:48,843 | INFO | core.model_client | Calling model provider=openai (chat turns=18)
+2026-04-11 21:57:51,016 | INFO | core.model_client | Calling model provider=openai (chat turns=20)
+2026-04-11 21:57:53,339 | INFO | core.model_client | Calling model provider=openai (chat turns=22)
+2026-04-11 21:57:55,816 | INFO | core.model_client | Calling model provider=openai (chat turns=24)
+2026-04-11 21:57:58,026 | INFO | core.model_client | Calling model provider=openai (chat turns=26)
+2026-04-11 21:57:59,893 | INFO | core.model_client | Calling model provider=openai (chat turns=28)
+2026-04-11 21:58:01,390 | INFO | core.model_client | Calling model provider=openai (chat turns=30)
+2026-04-11 21:58:03,162 | INFO | core.model_client | Calling model provider=openai (chat turns=32)
+2026-04-11 21:58:04,739 | INFO | core.model_client | Calling model provider=openai (chat turns=34)
+2026-04-11 21:58:06,002 | INFO | core.model_client | Calling model provider=openai (chat turns=36)
+2026-04-11 22:05:30,596 | INFO | app | Application started and database initialized.
+2026-04-11 22:05:53,845 | INFO | app | Application started and database initialized.
+2026-04-11 22:05:56,557 | INFO | app | Application started and database initialized.
+2026-04-11 22:11:11,045 | INFO | app | Application started and database initialized.
+2026-04-11 22:11:41,816 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 22:11:48,791 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 22:12:03,306 | INFO | core.model_client | Calling model provider=openai (chat turns=2)
+2026-04-11 22:12:06,066 | INFO | core.model_client | Calling model provider=openai (chat turns=4)
+2026-04-11 22:12:09,183 | INFO | core.model_client | Calling model provider=openai (chat turns=6)
+2026-04-11 22:12:11,679 | INFO | core.model_client | Calling model provider=openai (chat turns=8)
+2026-04-11 22:12:13,880 | INFO | core.model_client | Calling model provider=openai (chat turns=10)
+2026-04-11 22:12:16,009 | INFO | core.model_client | Calling model provider=openai (chat turns=12)
+2026-04-11 22:12:18,589 | INFO | core.model_client | Calling model provider=openai (chat turns=14)
+2026-04-11 22:12:22,888 | INFO | core.model_client | Calling model provider=openai (chat turns=16)
+2026-04-11 22:12:25,193 | INFO | core.model_client | Calling model provider=openai (chat turns=18)
+2026-04-11 22:12:27,219 | INFO | core.model_client | Calling model provider=openai (chat turns=20)
+2026-04-11 22:12:29,278 | INFO | core.model_client | Calling model provider=openai (chat turns=22)
+2026-04-11 22:12:31,284 | INFO | core.model_client | Calling model provider=openai (chat turns=24)
+2026-04-11 22:12:32,831 | INFO | core.model_client | Calling model provider=openai (chat turns=26)
+2026-04-11 22:12:34,634 | INFO | core.model_client | Calling model provider=openai (chat turns=28)
+2026-04-11 22:12:36,805 | INFO | core.model_client | Calling model provider=openai (chat turns=30)
+2026-04-11 22:12:38,854 | INFO | core.model_client | Calling model provider=openai (chat turns=32)
+2026-04-11 22:12:40,590 | INFO | core.model_client | Calling model provider=openai (chat turns=34)
+2026-04-11 22:12:42,151 | INFO | core.model_client | Calling model provider=openai (chat turns=36)
+2026-04-11 22:21:38,954 | INFO | app | Application started and database initialized.
+2026-04-11 22:26:49,844 | INFO | app | Application started and database initialized.
+2026-04-11 22:30:55,245 | INFO | app | Application started and database initialized.
+2026-04-11 22:31:17,965 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 22:31:27,184 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 22:31:44,971 | INFO | core.model_client | Calling model provider=openai (chat turns=2)
+2026-04-11 22:32:02,419 | INFO | core.model_client | Calling model provider=openai (chat turns=4)
+2026-04-11 22:32:29,307 | INFO | core.model_client | Calling model provider=openai (chat turns=6)
+2026-04-11 22:32:44,367 | INFO | core.model_client | Calling model provider=openai (chat turns=8)
+2026-04-11 22:33:23,765 | INFO | core.model_client | Calling model provider=openai (chat turns=10)
+2026-04-11 22:33:33,146 | INFO | core.model_client | Calling model provider=openai (chat turns=12)
+2026-04-11 22:34:52,126 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 22:35:33,958 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 22:37:40,856 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 22:38:03,128 | INFO | core.model_client | Calling model provider=openai (chat turns=2)
+2026-04-11 22:38:16,570 | INFO | core.model_client | Calling model provider=openai (chat turns=4)
+2026-04-11 22:38:32,431 | INFO | core.model_client | Calling model provider=openai (chat turns=6)
+2026-04-11 22:38:39,481 | INFO | core.model_client | Calling model provider=openai (chat turns=8)
+2026-04-11 22:39:02,262 | INFO | core.model_client | Calling model provider=openai (chat turns=10)
+2026-04-11 22:39:14,479 | INFO | core.model_client | Calling model provider=openai (chat turns=12)
+2026-04-11 22:39:32,100 | INFO | core.model_client | Calling model provider=openai (chat turns=14)
+2026-04-11 22:39:45,129 | INFO | core.model_client | Calling model provider=openai (chat turns=16)
+2026-04-11 22:40:13,074 | INFO | core.model_client | Calling model provider=openai (chat turns=18)
+2026-04-11 22:40:31,610 | INFO | core.model_client | Calling model provider=openai (chat turns=20)
+2026-04-11 22:40:47,048 | INFO | core.model_client | Calling model provider=openai (chat turns=22)
+2026-04-11 22:41:10,538 | INFO | core.model_client | Calling model provider=openai (chat turns=24)
+2026-04-11 22:41:34,341 | INFO | core.model_client | Calling model provider=openai (chat turns=26)
+2026-04-11 22:41:36,753 | INFO | core.model_client | Calling model provider=openai (chat turns=28)
+2026-04-11 22:41:40,107 | INFO | core.model_client | Calling model provider=openai (chat turns=30)
+2026-04-11 22:42:03,417 | INFO | core.model_client | Calling model provider=openai (chat turns=32)
+2026-04-11 22:42:11,825 | INFO | core.model_client | Calling model provider=openai (chat turns=34)
+2026-04-11 22:42:21,267 | INFO | core.model_client | Calling model provider=openai (chat turns=36)
+2026-04-11 22:56:29,574 | INFO | app | Application started and database initialized.
+2026-04-11 22:56:46,452 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 22:56:55,241 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 22:57:13,418 | INFO | core.model_client | Calling model provider=openai (chat turns=2)
+2026-04-11 22:57:15,794 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 22:57:50,220 | INFO | core.model_client | Calling model provider=openai (chat turns=4)
+2026-04-11 22:57:52,982 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 23:05:33,928 | INFO | app | Application started and database initialized.
+2026-04-11 23:05:47,152 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 23:05:56,537 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 23:06:07,733 | INFO | core.model_client | Calling model provider=openai (chat turns=2)
+2026-04-11 23:06:10,120 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 23:06:30,779 | INFO | core.model_client | Calling model provider=openai (chat turns=4)
+2026-04-11 23:06:33,706 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 23:06:47,766 | INFO | core.model_client | Calling model provider=openai (chat turns=6)
+2026-04-11 23:06:51,105 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 23:07:04,907 | INFO | core.model_client | Calling model provider=openai (chat turns=8)
+2026-04-11 23:07:08,587 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 23:07:24,614 | INFO | core.model_client | Calling model provider=openai (chat turns=10)
+2026-04-11 23:07:27,797 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 23:26:51,401 | INFO | app | Application started and database initialized.
+2026-04-11 23:27:12,825 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 23:27:28,152 | INFO | core.model_client | Calling model provider=openai (chat turns=2)
+2026-04-11 23:27:30,199 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 23:27:39,175 | INFO | core.model_client | Calling model provider=openai (chat turns=4)
+2026-04-11 23:27:40,913 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 23:28:59,193 | INFO | core.model_client | Calling model provider=openai (chat turns=6)
+2026-04-11 23:29:01,654 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 23:29:38,364 | INFO | core.model_client | Calling model provider=openai (chat turns=8)
+2026-04-11 23:29:41,591 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 23:30:03,464 | INFO | core.model_client | Calling model provider=openai (chat turns=10)
+2026-04-11 23:30:05,890 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 23:31:13,143 | INFO | core.model_client | Calling model provider=openai (chat turns=12)
+2026-04-11 23:31:15,806 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 23:31:29,117 | INFO | core.model_client | Calling model provider=openai (chat turns=14)
+2026-04-11 23:31:31,766 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 23:31:49,080 | INFO | core.model_client | Calling model provider=openai (chat turns=16)
+2026-04-11 23:31:52,242 | INFO | core.model_client | Calling model provider=openai
+2026-04-11 23:32:11,819 | INFO | core.model_client | Calling model provider=openai (chat turns=18)
+2026-04-11 23:32:13,773 | INFO | core.model_client | Calling model provider=openai

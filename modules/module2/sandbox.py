@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from core.agents.auditor import audit_response
 from core.agents.sales import sales_auto, sales_help
@@ -17,10 +17,101 @@ def prepare_scenario(
     return get_model_client().analyze_scenario(raw_text, "sandbox", source_name, use_llm=use_llm)
 
 
-def simulate(analysis: Dict[str, Any], turns: int = 8) -> Dict[str, Any]:
+def simulate(analysis: Dict[str, Any], turns: int = 18) -> Dict[str, Any]:
     transcript = get_model_client().simulate_negotiation(analysis, turns=turns)
     transcript_audit = _audit_transcript(transcript)
     return {"transcript": transcript, "audit": transcript_audit}
+
+
+def transcript_from_api_hist(api_hist: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    """Rebuild UI transcript roles from chat-style history (user/assistant pairs)."""
+    out: List[Dict[str, str]] = []
+    for idx in range(1, len(api_hist), 2):
+        turn = idx // 2
+        role = "buyer_ai" if turn % 2 == 0 else "sales_ai"
+        out.append({"role": role, "text": str(api_hist[idx].get("content", ""))})
+    return out
+
+
+def _speaker_label_demo(role: str) -> str:
+    if role == "buyer_ai":
+        return "Buyer (AI)"
+    if role == "sales_ai":
+        return "Covestro sales (AI)"
+    return role or "Speaker"
+
+
+def _mentor_prior_dialogue(transcript: List[Dict[str, str]], *, max_lines: int = 8) -> str:
+    if len(transcript) <= 1:
+        return ""
+    prior = transcript[:-1][-max_lines:]
+    lines: List[str] = []
+    for item in prior:
+        r = item.get("role", "")
+        label = "Buyer" if r == "buyer_ai" else "Covestro sales"
+        lines.append(f"{label}: {item.get('text', '').strip()}")
+    return "\n".join(lines)
+
+
+def _mentor_insight_for_turn(
+    analysis: Dict[str, Any],
+    item: Dict[str, str],
+    api_hist_after_turn: List[Dict[str, Any]],
+) -> str:
+    transcript = transcript_from_api_hist(api_hist_after_turn)
+    recent = _mentor_prior_dialogue(transcript)
+    label = _speaker_label_demo(item.get("role", ""))
+    utterance = str(item.get("text") or "")
+    return get_model_client().mentor_analyze_demo_turn(
+        speaker_label=label,
+        utterance=utterance,
+        analysis=analysis,
+        recent_dialogue=recent,
+    )
+
+
+def simulate_step(
+    analysis: Dict[str, Any],
+    api_hist: List[Dict[str, Any]],
+    *,
+    turns: int = 18,
+    mentor: bool = True,
+) -> Dict[str, Any]:
+    """
+    One simulation turn for step-by-step DEMO. No LLM call when already at max turns.
+    """
+    client = get_model_client()
+    step = client.simulate_negotiation_step(analysis, list(api_hist), max_turns=turns)
+    if step is None:
+        return {
+            "ok": True,
+            "done": True,
+            "api_hist": api_hist,
+            "item": None,
+            "audit": None,
+            "mentor_insight": None,
+            "turns_total": max(16, min(20, int(turns))),
+            "turns_done": len(api_hist) // 2,
+        }
+
+    audit = None
+    if step["done"]:
+        audit = _audit_transcript(transcript_from_api_hist(step["api_hist"]))
+
+    mentor_insight: Optional[str] = None
+    if mentor and step.get("item"):
+        mentor_insight = _mentor_insight_for_turn(analysis, step["item"], step["api_hist"])
+
+    return {
+        "ok": True,
+        "done": step["done"],
+        "api_hist": step["api_hist"],
+        "item": step["item"],
+        "audit": audit,
+        "mentor_insight": mentor_insight,
+        "turns_total": max(16, min(20, int(turns))),
+        "turns_done": len(step["api_hist"]) // 2,
+    }
 
 
 def run(action: str, payload: Dict[str, str]) -> Dict[str, Any]:

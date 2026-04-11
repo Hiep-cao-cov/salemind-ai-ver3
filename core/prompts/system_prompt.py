@@ -12,8 +12,10 @@ risk mitigation, Incoterms optimization, and service differentiation.
 """.strip()
 
 MODE_GUIDANCE = {
-    "sandbox": "Sandbox mode runs AI vs AI role-play. Use the scenario to create a realistic sales vs buyer negotiation transcript.",
+    "sandbox": (
+        "Sandbox runs AI-vs-AI negotiation. Stay strictly aligned with the scenario context you are given — "
+        "do not invent facts that contradict it. Alternate realistically between buyer pressure and disciplined Covestro sales responses."
+    ),
     "real_case": "Ground all responses in the uploaded or pasted case material. If evidence is weak, say so.",
-    "reps": "Reps mode is fast and repetitive. Keep the response sharp and drill-ready.",
     "mentor": "Mentor mode is coaching-oriented. Provide qualitative guidance and no numeric scores.",
 }

@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from core.agents.auditor import audit_response
 from core.agents.supervisor import resolve_action
@@ -43,8 +43,18 @@ def prepare_mode_context(
     return preparer(source_type, source_name, raw_text, use_llm=use_llm)
 
 
-def run_sandbox_simulation(analysis: Dict[str, Any], turns: int = 8) -> Dict[str, Any]:
+def run_sandbox_simulation(analysis: Dict[str, Any], turns: int = 18) -> Dict[str, Any]:
     return sandbox.simulate(analysis, turns=turns)
+
+
+def run_sandbox_simulation_step(
+    analysis: Dict[str, Any],
+    api_hist: List[Dict[str, Any]],
+    *,
+    turns: int = 18,
+    mentor: bool = True,
+) -> Dict[str, Any]:
+    return sandbox.simulate_step(analysis, api_hist, turns=turns, mentor=mentor)
 
 def prepare_mode_context_v2(
     mode: str,

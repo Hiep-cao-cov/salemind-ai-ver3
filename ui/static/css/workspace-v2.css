@@ -76,6 +76,13 @@
   gap: 16px;
 }
 
+.workspace-v2 .scenario-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
 .workspace-v2 .workspace-header {
   background: var(--w2-bg);
   border: 1px solid var(--w2-border);
@@ -128,6 +135,51 @@
 .workspace-v2 .message-row.assistant .bubble,
 .workspace-v2 .message-row.system .bubble {
   border: 1px solid var(--w2-border);
+}
+
+.workspace-v2 .message-row.mentor {
+  justify-content: flex-start;
+  margin: 2px 0 10px 12px;
+  padding-left: 10px;
+  border-left: 3px solid #7c3aed;
+}
+
+.workspace-v2 .message-row.mentor .bubble {
+  max-width: 100%;
+  background: linear-gradient(165deg, #faf5ff 0%, #f3e8ff 100%);
+  border: 1px solid #ddd6fe;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+.workspace-v2 .message-row.mentor .bubble-meta {
+  color: #5b21b6;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.workspace-v2 .message-row.mentor .bubble-text.mentor-body {
+  padding-top: 4px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #1e1b4b;
+  word-break: break-word;
+}
+
+.workspace-v2 .field-hint.demo-latency-hint {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(59, 130, 246, 0.06);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--w2-text);
+}
+
+.workspace-v2 .field-hint.demo-latency-hint strong {
+  color: var(--w2-accent);
 }
 
 .workspace-v2 .progress-dock {
