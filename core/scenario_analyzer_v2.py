@@ -2,7 +2,12 @@ import json
 from typing import Any, Dict
 
 from core.model_client import get_model_client
-from core.prompt_loader import load_prompt_file, render_prompt_template
+from core.prompt_loader import (
+    get_real_case_analysis_template,
+    get_sandbox_analysis_template,
+    get_scenario_system_prompt,
+    render_prompt_template,
+)
 
 
 def _default_result(title: str = "Scenario Analysis") -> Dict[str, Any]:
@@ -32,18 +37,16 @@ def analyze_with_cloud_model(
     source_name: str,
     raw_text: str,
 ) -> Dict[str, Any]:
-    system_prompt = load_prompt_file("scenario_system_cloud.txt")
+    system_prompt = get_scenario_system_prompt()
 
     if mode == "sandbox":
-        user_prompt = render_prompt_template(
-            "scenario_user_template_sandbox.txt",
+        user_prompt = get_sandbox_analysis_template().format(
             source_type=source_type,
             source_name=source_name,
             raw_text=raw_text[:12000],
         )
     elif mode == "real_case":
-        user_prompt = render_prompt_template(
-            "scenario_user_template_real_case.txt",
+        user_prompt = get_real_case_analysis_template().format(
             source_type=source_type,
             source_name=source_name,
             raw_text=raw_text[:12000],

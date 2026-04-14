@@ -482,6 +482,9 @@ async def api_sandbox_simulate_step(request: Request):
         raise HTTPException(status_code=400, detail="Prepare a scenario first")
 
     api_hist = _validate_sim_api_hist(payload.get("api_hist"))
+    simulation_state_in = payload.get("simulation_state")
+    if simulation_state_in is not None and not isinstance(simulation_state_in, dict):
+        raise HTTPException(status_code=400, detail="simulation_state must be an object")
     analysis = mode_context.get("analysis", {})
     mentor_flag = payload.get("mentor", True)
     if isinstance(mentor_flag, str):
@@ -489,7 +492,11 @@ async def api_sandbox_simulate_step(request: Request):
     mentor_enabled = bool(mentor_flag)
 
     result = run_sandbox_simulation_step(
-        analysis, api_hist, turns=turns, mentor=mentor_enabled
+        analysis,
+        api_hist,
+        simulation_state=simulation_state_in if isinstance(simulation_state_in, dict) else None,
+        turns=turns,
+        mentor=mentor_enabled,
     )
 
     if result.get("item"):
@@ -520,6 +527,9 @@ async def api_sandbox_simulate(request: Request):
 
     session_id = str(payload.get("session_id", "")).strip()
     turns = int(payload.get("turns", 18))
+    simulation_state_in = payload.get("simulation_state")
+    if simulation_state_in is not None and not isinstance(simulation_state_in, dict):
+        raise HTTPException(status_code=400, detail="simulation_state must be an object")
 
     if not session_id:
         raise HTTPException(status_code=400, detail="Session ID is required")
@@ -533,7 +543,11 @@ async def api_sandbox_simulate(request: Request):
         raise HTTPException(status_code=400, detail="Prepare a scenario first")
 
     analysis = mode_context.get("analysis", {})
-    simulation = run_sandbox_simulation(analysis, turns=turns)
+    simulation = run_sandbox_simulation(
+        analysis,
+        turns=turns,
+        simulation_state=simulation_state_in if isinstance(simulation_state_in, dict) else None,
+    )
 
     stored_messages = [
         {"role": item["role"], "content": item["text"], "audit": {}}

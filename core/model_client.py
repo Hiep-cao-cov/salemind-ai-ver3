@@ -2,7 +2,7 @@ import json
 import os
 import re
 from functools import lru_cache
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from utils.logger import get_logger
 
@@ -12,7 +12,7 @@ from core.prompts.demo_mentor_prompt import (
     fallback_demo_mentor_note,
     normalize_mentor_text,
 )
-from core.prompts.system_prompt import MODE_GUIDANCE, SYSTEM_FOUNDATION
+from core.prompts.system_prompt import SYSTEM_FOUNDATION
 
 logger = get_logger(__name__)
 
@@ -163,24 +163,38 @@ class ModelClient:
         *,
         use_llm: bool = True,
     ) -> Dict[str, Any]:
-        cleaned = raw_text.strip()
-        if not cleaned:
-            return {
-                "title": source_name or "Untitled Scenario",
-                "summary": "No scenario content was provided.",
+        def with_defaults(payload: Dict[str, Any]) -> Dict[str, Any]:
+            out = {
+                "title": "",
+                "summary": "",
+                "stakeholders": {"buyer": "", "seller": ""},
+                "pain_points": [],
+                "risks": [],
+                "power_dynamics": [],
                 "key_points": [],
                 "negotiation_points": [],
+                "recommended_strategies": [],
+                "tactical_suggestions": [],
+                "possible_objections": [],
                 "generated_scenario": "",
             }
+            out.update(payload)
+            return out
+
+        cleaned = raw_text.strip()
+        if not cleaned:
+            return with_defaults({
+                "title": source_name or "Untitled Scenario",
+                "summary": "No scenario content was provided.",
+            })
 
         if not use_llm:
-            return {
+            return with_defaults({
                 "title": source_name or self._derive_title(cleaned),
                 "summary": self._fallback_summary(cleaned),
                 "key_points": self._fallback_key_points(cleaned),
                 "negotiation_points": self._fallback_negotiation_points(cleaned),
-                "generated_scenario": "",
-            }
+            })
 
         provider = self.provider
         if provider in {"openai", "bedrock"}:
@@ -194,21 +208,20 @@ class ModelClient:
             )
             text = self.complete(prompt, temperature=0.2, max_tokens=900)
             parsed = self._extract_json(text)
-            if parsed:
+            if isinstance(parsed, dict):
                 parsed.setdefault("title", source_name or self._derive_title(cleaned))
                 parsed.setdefault("summary", self._fallback_summary(cleaned))
                 parsed.setdefault("key_points", self._fallback_key_points(cleaned))
                 parsed.setdefault("negotiation_points", self._fallback_negotiation_points(cleaned))
                 parsed.setdefault("generated_scenario", "")
-                return parsed
+                return with_defaults(parsed)
 
-        return {
+        return with_defaults({
             "title": source_name or self._derive_title(cleaned),
             "summary": self._fallback_summary(cleaned),
             "key_points": self._fallback_key_points(cleaned),
             "negotiation_points": self._fallback_negotiation_points(cleaned),
-            "generated_scenario": "",
-        }
+        })
 
     def create_scenario(self, brief: str, mode_key: str, *, use_llm: bool = True) -> Dict[str, Any]:
         prompt_brief = brief.strip() or "Create a realistic B2B chemical negotiation scenario involving price pressure, payment terms, technical support, and competitor pressure."
@@ -278,17 +291,6 @@ class ModelClient:
         return normalized if normalized.strip() else fallback_demo_mentor_note(speaker_label, utterance)
 
     @staticmethod
-    def _sim_transcript_tail(transcript: List[Dict[str, str]], max_lines: int = 10) -> str:
-        if not transcript:
-            return "(Negotiation has not started yet.)"
-        lines: List[str] = []
-        for item in transcript[-max_lines:]:
-            role = item.get("role", "")
-            label = "Buyer" if role == "buyer_ai" else "Covestro sales"
-            lines.append(f"{label}: {item.get('text', '').strip()}")
-        return "\n".join(lines)
-
-    @staticmethod
     def _clean_sim_utterance(raw: str) -> str:
         text = (raw or "").strip()
         for prefix in (
@@ -306,172 +308,86 @@ class ModelClient:
         return text[:2500]
 
     @staticmethod
-    def _buyer_opening_cue() -> str:
-        return (
-            "[Meeting start — Covestro sales has not spoken yet. "
-            "You speak first as the buyer, using only scenario facts: needs, pressure, competition, terms.]"
-        )
+    def _public_transcript_to_text(public_transcript: List[Dict[str, str]], *, max_lines: int = 12) -> str:
+        """Render shared public transcript (no private context)."""
+        if not public_transcript:
+            return "(No spoken turns yet.)"
+        lines: List[str] = []
+        for item in public_transcript[-max_lines:]:
+            speaker = "Buyer" if item.get("speaker") == "buyer" else "Covestro sales"
+            lines.append(f"{speaker}: {str(item.get('text', '')).strip()}")
+        return "\n".join(lines)
 
-    def _simulation_base_context(self, analysis: Dict[str, Any]) -> str:
+    @staticmethod
+    def _private_context_to_text(private_ctx: Dict[str, Any]) -> str:
+        goals = [str(x) for x in (private_ctx.get("goals") or [])]
+        limits = [str(x) for x in (private_ctx.get("limits") or [])]
+        notes = str(private_ctx.get("private_notes") or "").strip()
+        parts: List[str] = []
+        if goals:
+            parts.append("Goals:\n- " + "\n- ".join(goals[:6]))
+        if limits:
+            parts.append("Limits:\n- " + "\n- ".join(limits[:6]))
+        if notes:
+            parts.append(f"Private notes:\n{notes[:800]}")
+        return "\n\n".join(parts) if parts else "(No private directives.)"
+
+    def build_buyer_messages(self, analysis: Dict[str, Any], simulation_state: Dict[str, Any]) -> List[Dict[str, str]]:
+        """Build chat messages for the buyer agent only."""
         context_text = self._analysis_to_simulation_context(analysis)
-        return (
+        public_transcript = simulation_state.get("public_transcript") or []
+        buyer_private = simulation_state.get("buyer_private_context") or {}
+        system = (
             f"{SYSTEM_FOUNDATION}\n\n"
-            f"Mode guidance: {MODE_GUIDANCE.get('sandbox', '')}\n\n"
-            f"Scenario context:\n{context_text}\n\n"
-            "---\n"
-            "Negotiation simulation: reply with exactly one in-character spoken line (how a real person would say it aloud). "
-            "Sound human: natural wording, contractions OK, light emotion when it fits—avoid stiff corporate script or numbered lists. "
-            "Stay consistent with the scenario; do not invent contradictory facts. "
-            "Build on the conversation history; avoid repeating the same question or offer verbatim; advance the discussion. "
-            "No role labels in your line, no bullet lists, no meta-commentary."
+            "You are the BUYER/CUSTOMER in a B2B chemicals negotiation.\n"
+            "Push for commercial advantage while staying realistic and consistent with scenario facts.\n\n"
+            "Shared scenario context:\n"
+            f"{context_text}\n\n"
+            "Your private strategy (do NOT reveal explicitly):\n"
+            f"{self._private_context_to_text(buyer_private)}\n\n"
+            "Public transcript so far:\n"
+            f"{self._public_transcript_to_text(public_transcript)}\n\n"
+            "Respond with exactly ONE natural spoken line. No role labels, no bullets, no meta commentary."
+        )
+        return [{"role": "system", "content": system}, {"role": "user", "content": "Continue the negotiation as buyer."}]
+
+    def build_seller_messages(self, analysis: Dict[str, Any], simulation_state: Dict[str, Any]) -> List[Dict[str, str]]:
+        """Build chat messages for the seller agent only."""
+        context_text = self._analysis_to_simulation_context(analysis)
+        public_transcript = simulation_state.get("public_transcript") or []
+        seller_private = simulation_state.get("seller_private_context") or {}
+        system = (
+            f"{SYSTEM_FOUNDATION}\n\n"
+            "You are the COVESTRO B2B SELLER in a chemicals negotiation.\n"
+            "Defend value and margin discipline while staying natural and persuasive.\n\n"
+            "Shared scenario context:\n"
+            f"{context_text}\n\n"
+            "Your private strategy (do NOT reveal explicitly):\n"
+            f"{self._private_context_to_text(seller_private)}\n\n"
+            "Public transcript so far:\n"
+            f"{self._public_transcript_to_text(public_transcript)}\n\n"
+            "Respond with exactly ONE natural spoken line. No role labels, no bullets, no meta commentary."
+        )
+        return [{"role": "system", "content": system}, {"role": "user", "content": "Continue the negotiation as seller."}]
+
+    def generate_buyer_line(self, analysis: Dict[str, Any], simulation_state: Dict[str, Any]) -> str:
+        """Generate one buyer line from two-agent state."""
+        messages = self.build_buyer_messages(analysis, simulation_state)
+        text = self.complete_chat(messages, temperature=0.45, max_tokens=520)
+        cleaned = self._clean_sim_utterance(text)
+        return cleaned or (
+            "We still need stronger commercials on price and terms before we can close internal approval."
         )
 
-    def simulate_negotiation_step(
-        self,
-        analysis: Dict[str, Any],
-        api_hist: List[Dict[str, str]],
-        *,
-        max_turns: int = 18,
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Run exactly one AI-vs-AI turn. api_hist is OpenAI-style user/assistant pairs (even length).
-        Returns None when max_turns already completed (no model call).
-        """
-        max_turns = max(16, min(20, int(max_turns)))
-        i = len(api_hist) // 2
-        if i >= max_turns:
-            return None
-
-        provider = self.provider
-        if provider not in {"openai", "bedrock"}:
-            return self._simulate_negotiation_step_fallback(analysis, api_hist, max_turns=max_turns)
-
-        base_context = self._simulation_base_context(analysis)
-        hist = [dict(x) for x in api_hist]
-        is_buyer = i % 2 == 0
-        role_block = (
-            "\n\nYou are the BUYER / CUSTOMER. "
-            "Respond naturally to the latest user message (Covestro sales, or the meeting-start cue). "
-            "Speak like a real procurement or plant manager: direct, sometimes pressed for time—not a policy document."
-            if is_buyer
-            else "\n\nYou are the COVESTRO B2B SALES representative. "
-            "Respond naturally to the latest user message (what the buyer said). "
-            "Be professional but human (conversational, not robotic); still apply margin discipline, max 45-day payment, "
-            "and value-defense from the system rules above."
+    def generate_seller_line(self, analysis: Dict[str, Any], simulation_state: Dict[str, Any]) -> str:
+        """Generate one seller line from two-agent state."""
+        messages = self.build_seller_messages(analysis, simulation_state)
+        text = self.complete_chat(messages, temperature=0.4, max_tokens=520)
+        cleaned = self._clean_sim_utterance(text)
+        return cleaned or (
+            "Let’s tie any commercial movement to clear value exchange while keeping payment policy within 45 days."
         )
-        system_full = base_context + role_block
-        buyer_opening_cue = self._buyer_opening_cue()
 
-        if is_buyer and i == 0:
-            hist.append({"role": "user", "content": buyer_opening_cue})
-        else:
-            hist.append({"role": "user", "content": hist[-1]["content"]})
-
-        chat_messages = [{"role": "system", "content": system_full}] + hist
-        reply = self.complete_chat(
-            chat_messages,
-            temperature=0.45 if is_buyer else 0.4,
-            max_tokens=520,
-        )
-        text_out = self._clean_sim_utterance(reply)
-        if is_buyer and not text_out:
-            text_out = (
-                "We still see a gap on price and payment versus the benchmarks in our brief — "
-                "what can you move on while keeping supply dates?"
-            )
-        if not is_buyer and not text_out:
-            text_out = (
-                "Before we adjust commercials, let’s confirm launch timing and technical support scope — "
-                "then we can structure value without breaking our 45-day payment policy."
-            )
-
-        hist.append({"role": "assistant", "content": text_out})
-        role = "buyer_ai" if is_buyer else "sales_ai"
-        done = (i + 1) >= max_turns
-        return {"api_hist": hist, "item": {"role": role, "text": text_out}, "turn_index": i, "done": done}
-
-    def _simulate_negotiation_step_fallback(
-        self,
-        analysis: Dict[str, Any],
-        api_hist: List[Dict[str, str]],
-        *,
-        max_turns: int,
-    ) -> Optional[Dict[str, Any]]:
-        i = len(api_hist) // 2
-        if i >= max_turns:
-            return None
-        templates = self._fallback_pair_templates(analysis)
-        role, text_out = templates[i % len(templates)]
-        hist = [dict(x) for x in api_hist]
-        is_buyer = i % 2 == 0
-        if is_buyer and i == 0:
-            hist.append({"role": "user", "content": self._buyer_opening_cue()})
-        else:
-            hist.append({"role": "user", "content": hist[-1]["content"]})
-        hist.append({"role": "assistant", "content": text_out})
-        done = (i + 1) >= max_turns
-        return {"api_hist": hist, "item": {"role": role, "text": text_out}, "turn_index": i, "done": done}
-
-    def _fallback_pair_templates(self, analysis: Dict[str, Any]) -> List[Tuple[str, str]]:
-        summary = (analysis.get("summary") or "the case facts")[:160]
-        point = (analysis.get("negotiation_points") or ["Defend value before price."])[0]
-        return [
-            (
-                "buyer_ai",
-                f"We need sharper commercials on this case — price and terms are under internal review given {summary[:80]}…",
-            ),
-            (
-                "sales_ai",
-                "Let’s anchor on launch risk and support scope from the scenario before we touch list price — what is the real decision deadline?",
-            ),
-            (
-                "buyer_ai",
-                "Competitors are offering faster ramps; we need a credible package on price and payment or we split the award.",
-            ),
-            (
-                "sales_ai",
-                "Our strength is supply continuity and technical coverage in your situation — volume without that visibility does not help either side.",
-            ),
-            (
-                "buyer_ai",
-                "We still hear 60-day terms elsewhere; help us close the gap without pushing all risk to us.",
-            ),
-            (
-                "sales_ai",
-                "We cannot exceed 45-day payment; we can phase deliveries or add service linkage instead of open-ended term stretch.",
-            ),
-            (
-                "buyer_ai",
-                "If policy is fixed on payment, what structured movement can you show on service or allocation?",
-            ),
-            (
-                "sales_ai",
-                f"We can prioritize technical response and implementation support tied to forecast share — {point}",
-            ),
-            (
-                "buyer_ai",
-                "Forecast visibility is possible if the commercial envelope moves within what we outlined in the scenario.",
-            ),
-            (
-                "sales_ai",
-                "Then let’s document volume bands and tie service tiers to each band — still within margin and policy guardrails.",
-            ),
-        ]
-
-    def simulate_negotiation(self, analysis: Dict[str, Any], turns: int = 18) -> List[Dict[str, str]]:
-        turns = max(16, min(20, int(turns)))
-        if self.provider not in {"openai", "bedrock"}:
-            return self._fallback_simulation(analysis, turns)
-
-        transcript: List[Dict[str, str]] = []
-        api_hist: List[Dict[str, str]] = []
-        for _ in range(turns):
-            step = self.simulate_negotiation_step(analysis, api_hist, max_turns=turns)
-            if not step:
-                break
-            api_hist = step["api_hist"]
-            transcript.append(step["item"])
-        return transcript
 
     def _extract_json(self, text: str) -> Optional[Any]:
         if not text:
@@ -566,18 +482,6 @@ class ModelClient:
             }
             return json.dumps(analysis)
         return "Thanks for the input. A strong next move is to clarify the real business requirement, defend value first, and avoid policy-breaking concessions."
-
-    def _fallback_simulation(self, analysis: Dict[str, Any], turns: int) -> List[Dict[str, str]]:
-        turns = max(16, min(20, int(turns)))
-        pair_templates = self._fallback_pair_templates(analysis)
-        transcript: List[Dict[str, str]] = []
-        p = 0
-        while len(transcript) < turns:
-            role, tmpl = pair_templates[p % len(pair_templates)]
-            transcript.append({"role": role, "text": tmpl})
-            p += 1
-        return transcript[:turns]
-
 
 def get_active_model_info() -> Dict[str, str]:
     """

@@ -42,21 +42,11 @@
 
         <p class="muted-copy">
           {% if mode == 'sandbox' %}
-          <h4>Create or load a scenario → analyze → run AI vs AI negotiation.</h4>
+          <h4>Create or load a scenario → analyze → chat with AI Seller or run DEMO simulation.</h4>
           {% elif mode == 'real_case' %}
           <h4>Paste/upload a your real case or select from library scenario → analyze → continue negotiation.</h4>
           {% endif %}
         </p>
-
-        <div class="header-chips">
-          <span class="info-chip">Session {{ session_id[:8] }}</span>
-
-          {% if has_context %}
-          <span class="info-chip success">Scenario Ready</span>
-          {% else %}
-          <span class="info-chip muted">No Scenario</span>
-          {% endif %}
-        </div>
       </div>
 
       <div class="action-cluster">
@@ -127,13 +117,6 @@
             <span class="model-info-value" id="model-info-value">{{ analyzer_line_no_llm }}</span>
           </p>
           <p class="field-hint model-info-hint">Negotiation chat uses: <strong>{{ model_info.label }}</strong></p>
-          {% if mode == 'sandbox' %}
-          <p class="field-hint demo-latency-hint">
-            <strong>DEMO timing:</strong> each turn runs two model calls (negotiation line + short mentor summary).
-            Expect about <strong>2×</strong> the latency of a single chat reply; use a faster model to shorten waits.
-            Integrations can send <code>"mentor": false</code> on <code>/api/sandbox/simulate-step</code> to skip mentor and cut latency roughly in half.
-          </p>
-          {% endif %}
           {% endif %}
         </div>
 

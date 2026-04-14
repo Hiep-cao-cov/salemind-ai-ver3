@@ -838,12 +838,6 @@ td {
   padding: 2px 2px 0;
 }
 
-.header-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 14px;
-}
 
 .action-cluster {
   display: flex;
@@ -1355,7 +1349,6 @@ td {
   }
 
   .action-cluster,
-  .header-chips,
   .scenario-actions {
     width: 100%;
   }

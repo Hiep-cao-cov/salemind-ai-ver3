@@ -1,0 +1,34 @@
+# Deal termination rules for DEMO sandbox.
+# Edit this file to change close/no-deal behavior without code changes.
+#
+# Syntax:
+# - Use section headers: [deal_closed], [no_deal], [escalate]
+# - Add one phrase per line (or with "-" bullet)
+# - Optional setting: min_turn_for_close: <int>
+#
+# Matching behavior:
+# - Case-insensitive substring matching
+# - deal_closed / no_deal are checked against the latest utterance first
+# - no_deal has priority over deal_closed if both appear
+
+min_turn_for_close: 6
+
+[deal_closed]
+we have a deal
+deal confirmed
+agreement reached
+let's proceed with this deal
+we can close on these terms
+accepted
+
+[no_deal]
+no deal
+cannot proceed
+walk away
+we will not move forward
+unable to agree
+
+[escalate]
+escalate to management
+need leadership approval
+take this to manager

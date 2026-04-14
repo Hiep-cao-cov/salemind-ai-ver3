@@ -43,7 +43,14 @@ def prepare_mode_context(
     return preparer(source_type, source_name, raw_text, use_llm=use_llm)
 
 
-def run_sandbox_simulation(analysis: Dict[str, Any], turns: int = 18) -> Dict[str, Any]:
+def run_sandbox_simulation(
+    analysis: Dict[str, Any],
+    turns: int = 18,
+    *,
+    simulation_state: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    # Keep signature extensible; simulation_state is reserved for future full-run resume use.
+    _ = simulation_state
     return sandbox.simulate(analysis, turns=turns)
 
 
@@ -51,10 +58,17 @@ def run_sandbox_simulation_step(
     analysis: Dict[str, Any],
     api_hist: List[Dict[str, Any]],
     *,
+    simulation_state: Dict[str, Any] | None = None,
     turns: int = 18,
     mentor: bool = True,
 ) -> Dict[str, Any]:
-    return sandbox.simulate_step(analysis, api_hist, turns=turns, mentor=mentor)
+    return sandbox.simulate_step(
+        analysis,
+        api_hist,
+        simulation_state=simulation_state,
+        turns=turns,
+        mentor=mentor,
+    )
 
 def prepare_mode_context_v2(
     mode: str,

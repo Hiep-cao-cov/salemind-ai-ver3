@@ -70,6 +70,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const simNextBtn = document.getElementById('sim-next-btn');
 
   let simApiHist = [];
+  const newSimState = () => ({
+    public_transcript: [],
+    next_speaker: 'buyer',
+    buyer_private_context: {},
+    seller_private_context: {}
+  });
+  let simState = newSimState();
   let simInProgress = false;
 
   const form = document.getElementById('scenario-form');
@@ -153,6 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (role === 'mentor') return 'Mentor';
     if (role === 'system') return 'System';
     if (role === 'assistant') {
+      if (mode === 'sandbox') return 'AI Seller';
       if (mode === 'real_case' && getPracticeRole() === 'seller') return 'AI Buyer';
       if (mode === 'real_case' && getPracticeRole() === 'buyer') return 'AI Sales';
       return 'AI Assistant';
@@ -273,6 +281,7 @@ document.addEventListener('DOMContentLoaded', () => {
     hideSummary();
     setHasContext(false);
     simApiHist = [];
+    simState = newSimState();
     simInProgress = false;
 
     if (generatedScenarioWrap) generatedScenarioWrap.classList.add('hidden');
@@ -314,6 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       renderSummary(data.context);
       simApiHist = [];
+      simState = newSimState();
       simInProgress = false;
 
       if (scenarioBrief) scenarioBrief.classList.add('hidden');
@@ -342,11 +352,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (input) input.value = '';
         return;
       }
-      return;
-    }
-
-    if (action === 'chat' && mode === 'sandbox') {
-      if (input) input.value = '';
       return;
     }
 
@@ -483,6 +488,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       renderSummary(data.context);
       simApiHist = [];
+      simState = newSimState();
       simInProgress = false;
 
       setProgress(100, 'Scenario ready');
@@ -500,7 +506,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const DEMO_TURNS = 18;
 
   /** One model call = one negotiation line; must hit /simulate-step (not legacy /simulate). */
-  const fetchSandboxSimulateStep = async (apiHistPayload) => {
+  const fetchSandboxSimulateStep = async (apiHistPayload, simulationStatePayload) => {
     const res = await fetch('/api/sandbox/simulate-step', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -508,6 +514,7 @@ document.addEventListener('DOMContentLoaded', () => {
         session_id: sessionId,
         turns: DEMO_TURNS,
         api_hist: apiHistPayload,
+        simulation_state: simulationStatePayload,
         mentor: true
       })
     });
@@ -541,20 +548,23 @@ document.addEventListener('DOMContentLoaded', () => {
       if (chatPanel) chatPanel.innerHTML = '';
       hideChatEmptyState();
       simApiHist = [];
+      simState = newSimState();
       simInProgress = true;
       refreshSandboxSimButtons();
 
-      const { ok, data, staleClient } = await fetchSandboxSimulateStep([]);
+      const { ok, data, staleClient } = await fetchSandboxSimulateStep([], simState);
 
       if (!ok) {
         simInProgress = false;
         simApiHist = [];
+        simState = newSimState();
         setProgress(0, staleClient ? 'Hard refresh page (Ctrl+Shift+R)' : 'Simulation failed');
         refreshSandboxSimButtons();
         return;
       }
 
       simApiHist = data.api_hist || [];
+      simState = data.simulation_state || simState;
       if (data.item) {
         appendMessage(data.item.role, data.item.text || '');
       }
@@ -572,6 +582,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error(e);
       simInProgress = false;
       simApiHist = [];
+      simState = newSimState();
       setProgress(0, 'Error');
     } finally {
       isProcessing = false;
@@ -586,7 +597,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setProgress(35, 'Generating next turn...');
 
     try {
-      const { ok, data, staleClient } = await fetchSandboxSimulateStep(simApiHist);
+      const { ok, data, staleClient } = await fetchSandboxSimulateStep(simApiHist, simState);
 
       if (!ok) {
         setProgress(0, staleClient ? 'Hard refresh page (Ctrl+Shift+R)' : 'Simulation failed');
@@ -594,6 +605,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       simApiHist = data.api_hist || simApiHist;
+      simState = data.simulation_state || simState;
       if (data.item) {
         appendMessage(data.item.role, data.item.text || '');
       }
@@ -690,6 +702,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearPracticeChatUi();
         if (mode === 'sandbox') {
           simApiHist = [];
+          simState = newSimState();
           simInProgress = false;
           refreshSandboxSimButtons();
         }
