@@ -43,6 +43,36 @@ def _turn_length_instruction() -> str:
     )
 
 
+def _difficulty_contract(diff: str) -> str:
+    """
+    Strong, visibly different arcs for SIMPLE vs MEDIUM vs HARD so trainers
+    immediately notice a difficulty change when re-running DEMO on the same scenario.
+    """
+    d = (diff or "medium").strip().lower()
+    if d not in {"simple", "medium", "hard"}:
+        d = "medium"
+
+    simple = """**DIFFICULTY = SIMPLE (must read as clearly easier than Medium/Hard):**
+- **Buyer**: constructive procurement—clear asks but **low interpersonal heat**; prefers package language (“what would a balanced package look like?”); **at most one** competitive/alternative-supplier threat in the **whole** transcript, and keep it professional, not punitive.
+- **Seller**: confidently explains value and **offers structured trades earlier** (still no policy-breaking terms); willing to **confirm alignment** on several pillars (price band, payment, volume/tenure) **before the last ~25% of turns** so the thread feels **cooperative problem-solving**.
+- **Arc**: **two** main tension beats (e.g. price anchor → package resolution); by turn **~ceil(0.65×N)** the parties should be **largely aligned** on the commercial frame; final turns = **clean documentation / next-step** tone, not a last-minute ambush.
+- **Explicit contrast**: avoid long chains of buyer “take it or leave it” lines; avoid seller stonewalling past the midpoint."""
+
+    medium = """**DIFFICULTY = MEDIUM (default balanced B2B):**
+- **Buyer**: **credible pressure**—anchors, tests, and **occasional** competition or board timeline; demands **reciprocity** before moving; may **re-open one issue once** after seeming progress (classic procurement).
+- **Seller**: **disciplined Covestro**—defends margin, **if–then** framing, no headline discount without traded value; concedes in **small, earned steps** after buyer clarifies scope.
+- **Arc**: **three** tension beats (open → squeeze → package/trade → near-close); major movement on commercials should not appear until **past the midpoint** of the transcript; close still requires a **clear recap** of what is traded for what.
+- **Explicit contrast**: noticeably **more friction and fewer early giveaways** than SIMPLE; noticeably **less brutality and fewer multi-issue pile-ons per buyer turn** than HARD."""
+
+    hard = """**DIFFICULTY = HARD (must read as clearly tougher than Medium—trainee should feel heat):**
+- **Buyer**: **strategic, high-pressure procurement**—often **bundles 2–3 levers in one turn** (e.g. price + payment + ESG/Scope 3 or volume + tenure); uses **credible time pressure** and **at least two** distinct references to **alternatives, benchmarks, or internal gatekeepers** across the transcript; may **withdraw a prior “signal”** or tighten terms if seller moves too slowly.
+- **Seller**: **minimal early movement**; **more “prove it / document it”** responses; major commercial movement only **after** buyer has traded something measurable (forecast, tenure, scope); **no free concessions**—every improvement is **explicitly packaged**.
+- **Arc**: **at least four** distinct waves of buyer pressure after the opening; **no comfortable settlement** before **past 60% of turns**; include **one late-stage sharp test** (e.g. final nibbling on payment, carbon claims, or liability) **before** a deal or a **firm walk-away / pause with reasons**.
+- **Explicit contrast**: transcript must **not** feel like SIMPLE (no early warm alignment); buyer language can be **blunter** but stay professional (no abuse, no slurs)."""
+
+    return {"simple": simple, "medium": medium, "hard": hard}[d]
+
+
 def _clip(text: str, limit: int) -> str:
     t = (text or "").strip()
     if len(t) <= limit:
@@ -68,6 +98,7 @@ def build_demo_ai_negotiation_prompt(
     ctx = (scenario_context or "").strip() or "(No scenario context.)"
     skill_cap = _skill_excerpt_max()
     turn_rule = _turn_length_instruction()
+    diff_contract = _difficulty_contract(diff)
 
     return f"""You are **Demo_AI_negotiation**, a single authoring agent for a training simulation.
 
@@ -92,9 +123,11 @@ STRICT RULES:
 4. Obey **Covestro strategy** in seller lines: full-package economics, margin discipline, reciprocity (“if–then”), no price in isolation, sustainability as traded value where relevant — aligned with the skill excerpts below.
 5. Obey **company strategy / policy** text below verbatim where it applies; do not contradict it.
 6. Stay faithful to **scenario facts**; do not invent confidential Covestro numbers unless the scenario already states them.
-7. Difficulty flavour: **{diff}** — simple = slightly faster convergence; hard = tougher buyer, more rounds of pushback before close.
+7. **Difficulty is `{diff}` (uppercase label for the model: {diff.upper()})** — obey the contract below **literally** so a trainer comparing runs on the **same scenario** immediately sees a different **pace, buyer harshness, and seller rigidity**.
 8. Each line should **move the deal forward** (clarify, pressure, trade, or commit)—avoid throat-clearing, vague politeness chains, or meta commentary (“as negotiators we should…”).
 9. {turn_rule}
+
+{diff_contract}
 
 Scenario and analysis context:
 {ctx}

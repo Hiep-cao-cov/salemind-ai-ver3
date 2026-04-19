@@ -11,13 +11,16 @@ from core.chat_engine import (
     run_sandbox_simulation,
     run_sandbox_simulation_step,
 )
+from core.agents.auditor import audit_response
 from core.agents.real_case_user_audit import audit_real_case_user_message
+from core.agents.sales import sales_response_stream
+from core.agents.supervisor import resolve_action
 from core.model_client import get_active_model_info, scenario_analyzer_display_line
 from core.scenario_store import get_scenario_by_id, load_scenarios
 from modules.manager.dashboard import load_dashboard_data
 
 
-from utils.ai_output_config import demo_turns_default
+from utils.ai_output_config import demo_turns_default, get_int
 from utils.db import (
     add_message,
     add_messages,
@@ -37,6 +40,7 @@ from utils.db import (
 )
 from utils.security import clear_user_session, get_current_user, require_manager, require_user, set_user_session
 from core.rag import save_uploaded_context
+from modules.module2 import real_case as real_case_module
 
 router = APIRouter()
 
@@ -57,6 +61,22 @@ def _base_context(request: Request) -> Dict[str, object]:
         "current_user": get_current_user(request),
         "job_roles": JOB_ROLES,
     }
+
+
+def _practice_mentor_skip_llm(*, mode: str, message: str, detail: Dict[str, Any]) -> bool:
+    """
+    When True, Practice skips the mentor LLM call for this turn (buyer/seller still use full prompts).
+    Opening / coach flows (no user message body) never skip.
+    """
+    if mode != "real_case":
+        return False
+    every_n = get_int("mentor_schedule", "practice_mentor_every_n_user_messages", 1)
+    if every_n <= 1:
+        return False
+    if not str(message or "").strip():
+        return False
+    n_user = sum(1 for m in detail.get("messages") or [] if str(m.get("role", "")).lower() == "user")
+    return (n_user - 1) % every_n != 0
 
 
 def _messages_with_parsed_audit(detail: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -192,7 +212,7 @@ def workspace(request: Request, mode: str, session_id: str | None = None):
         if mode == "real_case":
             update_session_practice_role(session_id, practice_role)
 
-    detail = get_session_detail(session_id)
+    detail = get_session_detail(session_id, module_key="module_2", mode_key=mode)
     mode_context = _serialize_context(detail.get("context"))
 
     context = _base_context(request)
@@ -441,7 +461,11 @@ async def api_chat_stream(request: Request):
         context_parts.append("Negotiation points: " + "; ".join(analysis["negotiation_points"]))
 
     if mode_context and mode_context.get("raw_text"):
-        context_parts.append(f"Scenario text:\n{str(mode_context['raw_text'])[:6000]}")
+        cap = get_int("chat_context", "raw_text_max_chars", 3600)
+        raw = str(mode_context["raw_text"])
+        if cap > 0 and len(raw) > cap:
+            raw = raw[:cap] + "…"
+        context_parts.append(f"Scenario text:\n{raw}")
 
     context_text = "\n\n".join(context_parts)
 
@@ -467,27 +491,70 @@ async def api_chat_stream(request: Request):
         chat_payload["analysis"] = analysis
         chat_payload["difficulty"] = payload.get("difficulty", "medium")
         chat_payload["mentor"] = payload.get("mentor", True)
-        detail = get_session_detail(session_id)
+        detail = get_session_detail(session_id, module_key="module_2", mode_key=mode)
         chat_payload["history_messages"] = detail.get("messages", [])
-
-    result = run_chat(mode, action, chat_payload)
-
-    reply = str(result["reply"])
-    if mode == "real_case":
-        audit_payload: Dict[str, Any] = {}
+        chat_payload["mentor_skip_llm"] = _practice_mentor_skip_llm(
+            mode=mode, message=message, detail=detail
+        )
     else:
-        audit_payload = result.get("audit") if isinstance(result.get("audit"), dict) else {}
+        chat_payload.setdefault("mentor_skip_llm", False)
 
-    add_message(session_id, "module_2", mode, "assistant", reply, audit=audit_payload or {})
-    mentor_insight = result.get("mentor_insight")
-    mentor_text = str(mentor_insight).strip() if mentor_insight is not None else ""
-    if mentor_text:
-        add_message(session_id, "module_2", mode, "mentor", mentor_text)
+    norm_action = resolve_action(action, mode)
+
+    def _sse_token(delta: str) -> str:
+        return f"data: {json.dumps({'token': delta})}\n\n"
+
+    def _sse_done(audit: Dict[str, Any], mentor: str) -> str:
+        return (
+            f"data: {json.dumps({'done': True, 'audit': audit, 'user_audit': user_audit_for_sse, 'mentor_insight': mentor})}\n\n"
+        )
 
     async def event_stream():
-        for token in reply.split():
-            yield f"data: {json.dumps({'token': token + ' '})}\n\n"
-        yield f"data: {json.dumps({'done': True, 'audit': audit_payload, 'user_audit': user_audit_for_sse, 'mentor_insight': mentor_text})}\n\n"
+        reply = ""
+        audit_payload: Dict[str, Any] = {}
+        mentor_text = ""
+        try:
+            if mode == "real_case" and norm_action == "chat":
+                outcome: Dict[str, Any] = {}
+                for delta in real_case_module.iter_chat_assistant_tokens(norm_action, chat_payload, outcome):
+                    if delta:
+                        yield _sse_token(delta)
+                item = outcome.get("item") or {}
+                reply = str(item.get("text") or "").strip()
+                mentor_text = str(outcome.get("mentor_insight") or "").strip()
+                audit_payload = {}
+            elif mode == "sandbox" and norm_action == "chat":
+                parts: List[str] = []
+                for delta in sales_response_stream(mode, message, context_text):
+                    if delta:
+                        parts.append(delta)
+                        yield _sse_token(delta)
+                reply = "".join(parts).strip()
+                audit_payload = audit_response(reply) if reply else {}
+            else:
+                result = run_chat(mode, norm_action, chat_payload)
+                reply = str(result.get("reply", "") or "")
+                if mode == "real_case":
+                    audit_payload = {}
+                else:
+                    audit_payload = result.get("audit") if isinstance(result.get("audit"), dict) else {}
+                    if not audit_payload and reply:
+                        audit_payload = audit_response(reply)
+                mentor_raw = result.get("mentor_insight")
+                mentor_text = str(mentor_raw).strip() if mentor_raw is not None else ""
+                if reply:
+                    yield _sse_token(reply)
+        except Exception as exc:
+            reply = f"Sorry, the request failed: {exc}"
+            yield _sse_token(reply)
+            if mode != "real_case":
+                audit_payload = audit_response(reply)
+
+        if reply:
+            add_message(session_id, "module_2", mode, "assistant", reply, audit=audit_payload or {})
+        if mentor_text:
+            add_message(session_id, "module_2", mode, "mentor", mentor_text)
+        yield _sse_done(audit_payload, mentor_text)
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
@@ -654,7 +721,11 @@ def api_session(request: Request, session_id: str):
     if not session or session["user_id"] != user["id"]:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    detail = get_session_detail(session_id)
+    mode_filter = str(request.query_params.get("mode_key") or session.get("mode_key") or "").strip()
+    if mode_filter not in MODE_LABELS:
+        mode_filter = str(session.get("mode_key") or DEFAULT_MODE).strip()
+
+    detail = get_session_detail(session_id, module_key="module_2", mode_key=mode_filter)
     detail["context"] = _serialize_context(detail.get("context"))
 
     return JSONResponse(detail)

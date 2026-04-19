@@ -2,7 +2,7 @@ import json
 import os
 import re
 from functools import lru_cache
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 from utils.logger import get_logger
 
@@ -106,6 +106,200 @@ class ModelClient:
                 return text or "No response generated."
 
         return self._fallback_text(prompt)
+
+    def complete_stream(
+        self,
+        prompt: str,
+        *,
+        temperature: float = 0.35,
+        max_tokens: int = 700,
+    ) -> Iterator[str]:
+        """
+        Stream completion text deltas (single user message). Falls back to one chunk if streaming unsupported.
+        """
+        provider = self.provider
+        logger.info("Calling model provider=%s (stream)", provider)
+        if provider == "openai":
+            client = self._get_openai()
+            if client:
+                model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+                stream = client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    stream=True,
+                )
+                for event in stream:
+                    choice = event.choices[0] if event.choices else None
+                    if not choice:
+                        continue
+                    delta = getattr(choice.delta, "content", None) or ""
+                    if delta:
+                        yield delta
+                return
+        if provider == "bedrock":
+            client = self._get_bedrock()
+            if client:
+                try:
+                    yield from self._bedrock_complete_stream(prompt, temperature=temperature, max_tokens=max_tokens)
+                    return
+                except Exception as ex:  # pragma: no cover
+                    logger.warning("Bedrock stream failed, using non-streaming: %s", ex)
+        text = self.complete(prompt, temperature=temperature, max_tokens=max_tokens)
+        if text:
+            yield text
+
+    def _bedrock_complete_stream(
+        self,
+        prompt: str,
+        *,
+        temperature: float,
+        max_tokens: int,
+    ) -> Iterator[str]:
+        """Anthropic Messages API on Bedrock with response stream."""
+        client = self._get_bedrock()
+        if not client:
+            return
+        model_id = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
+        body = json.dumps(
+            {
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "messages": [{"role": "user", "content": [{"type": "text", "text": prompt}]}],
+            }
+        )
+        response = client.invoke_model_with_response_stream(modelId=model_id, body=body)
+        stream = response.get("body")
+        if stream is None:
+            return
+        for event in stream:
+            raw = None
+            if isinstance(event, dict):
+                ch = event.get("chunk")
+                if isinstance(ch, dict):
+                    raw = ch.get("bytes")
+                elif isinstance(ch, (bytes, bytearray)):
+                    raw = ch
+            else:
+                ch = getattr(event, "chunk", None)
+                if ch is not None:
+                    raw = getattr(ch, "bytes", None) or ch
+            if not raw:
+                continue
+            if isinstance(raw, (bytes, bytearray)):
+                raw = raw.decode("utf-8", errors="replace")
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            if payload.get("type") == "content_block_delta":
+                delta = (payload.get("delta") or {}).get("text") or ""
+                if delta:
+                    yield delta
+
+    def complete_chat_stream(
+        self,
+        messages: List[Dict[str, str]],
+        *,
+        temperature: float = 0.4,
+        max_tokens: int = 520,
+    ) -> Iterator[str]:
+        """Stream chat completion deltas; falls back to one chunk."""
+        provider = self.provider
+        logger.info("Calling model provider=%s (chat stream, turns=%d)", provider, len(messages))
+        if provider == "openai":
+            client = self._get_openai()
+            if client:
+                model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+                stream = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    stream=True,
+                )
+                for event in stream:
+                    choice = event.choices[0] if event.choices else None
+                    if not choice:
+                        continue
+                    delta = getattr(choice.delta, "content", None) or ""
+                    if delta:
+                        yield delta
+                return
+        if provider == "bedrock":
+            client = self._get_bedrock()
+            if client:
+                try:
+                    yield from self._bedrock_complete_chat_stream(messages, temperature=temperature, max_tokens=max_tokens)
+                    return
+                except Exception as ex:  # pragma: no cover
+                    logger.warning("Bedrock chat stream failed, using non-streaming: %s", ex)
+        yield self.complete_chat(messages, temperature=temperature, max_tokens=max_tokens)
+
+    def _bedrock_complete_chat_stream(
+        self,
+        messages: List[Dict[str, str]],
+        *,
+        temperature: float,
+        max_tokens: int,
+    ) -> Iterator[str]:
+        client = self._get_bedrock()
+        if not client:
+            return
+        model_id = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-haiku-20240307-v1:0")
+        system_chunks: List[str] = []
+        api_messages: List[Dict[str, Any]] = []
+        for m in messages:
+            role = m.get("role", "")
+            content = m.get("content", "")
+            if role == "system":
+                system_chunks.append(content)
+            elif role in ("user", "assistant"):
+                api_messages.append(
+                    {
+                        "role": role,
+                        "content": [{"type": "text", "text": content}],
+                    }
+                )
+        body_obj: Dict[str, Any] = {
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "messages": api_messages,
+        }
+        if system_chunks:
+            body_obj["system"] = "\n\n".join(system_chunks)
+        body = json.dumps(body_obj)
+        response = client.invoke_model_with_response_stream(modelId=model_id, body=body)
+        stream = response.get("body")
+        if stream is None:
+            return
+        for event in stream:
+            raw = None
+            if isinstance(event, dict):
+                ch = event.get("chunk")
+                if isinstance(ch, dict):
+                    raw = ch.get("bytes")
+                elif isinstance(ch, (bytes, bytearray)):
+                    raw = ch
+            else:
+                ch = getattr(event, "chunk", None)
+                if ch is not None:
+                    raw = getattr(ch, "bytes", None) or ch
+            if not raw:
+                continue
+            if isinstance(raw, (bytes, bytearray)):
+                raw = raw.decode("utf-8", errors="replace")
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            if payload.get("type") == "content_block_delta":
+                delta = (payload.get("delta") or {}).get("text") or ""
+                if delta:
+                    yield delta
 
     def complete_chat(
         self,
@@ -553,7 +747,7 @@ class ModelClient:
             "Your private strategy (do NOT reveal explicitly):\n"
             f"{self._private_context_to_text(buyer_private)}\n\n"
             "Public transcript so far:\n"
-            f"{self._public_transcript_to_text(public_transcript, max_lines=20)}\n\n"
+            f"{self._public_transcript_to_text(public_transcript, max_lines=get_int('agent_context', 'transcript_max_lines', 14))}\n\n"
             "Coaching recommendation for this turn:\n"
             f"{coaching_for_buyer or '(No previous advice)'}\n\n"
             f"{task_block}"
@@ -590,7 +784,7 @@ class ModelClient:
             "Your private strategy (do NOT reveal explicitly):\n"
             f"{self._private_context_to_text(seller_private)}\n\n"
             "Public transcript so far:\n"
-            f"{self._public_transcript_to_text(public_transcript, max_lines=20)}\n\n"
+            f"{self._public_transcript_to_text(public_transcript, max_lines=get_int('agent_context', 'transcript_max_lines', 14))}\n\n"
             "Previous coaching advice to apply (if present):\n"
             f"{coaching_advice_prev or '(No previous advice)'}\n\n"
             "Respond with exactly ONE natural spoken line. No role labels, no bullets, no meta commentary."
@@ -633,7 +827,10 @@ class ModelClient:
         Coaching agent pass/fail review for seller draft.
         """
         context_text = self._full_negotiation_context(analysis)
-        history_text = self._public_transcript_to_text(simulation_state.get("public_transcript") or [], max_lines=24)
+        history_text = self._public_transcript_to_text(
+            simulation_state.get("public_transcript") or [],
+            max_lines=get_int("coaching_evaluator", "transcript_max_lines", 12),
+        )
         try:
             seller_skill_text = get_sell_skill_text().strip()
         except Exception:
@@ -670,7 +867,10 @@ class ModelClient:
         Coaching agent pass/fail review for buyer draft.
         """
         context_text = self._full_negotiation_context(analysis)
-        history_text = self._public_transcript_to_text(simulation_state.get("public_transcript") or [], max_lines=24)
+        history_text = self._public_transcript_to_text(
+            simulation_state.get("public_transcript") or [],
+            max_lines=get_int("coaching_evaluator", "transcript_max_lines", 12),
+        )
         try:
             buyer_skill_text = get_buy_skill_text().strip()
         except Exception:

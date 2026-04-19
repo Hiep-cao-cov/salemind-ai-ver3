@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterator, List
 
 from core.model_client import get_model_client
 from modules.module2 import sandbox
@@ -90,6 +90,77 @@ def _mentor_insight_for_practice_turn(
     )
 
 
+def iter_chat_assistant_tokens(
+    action: str,
+    payload: Dict[str, Any],
+    outcome: Dict[str, Any],
+) -> Iterator[str]:
+    """
+    Stream the AI counterpart line for Practice (``action`` is normalized, e.g. ``chat``).
+    Fills ``outcome`` with ``item`` and ``mentor_insight`` (when mentor is enabled).
+    """
+    context_text = str(payload.get("context_text", "") or "")
+    practice_role = _normalize_role(payload)
+    analysis = payload.get("analysis")
+    if not isinstance(analysis, dict):
+        analysis = {}
+    difficulty = str(payload.get("difficulty", "medium") or "medium").strip().lower()
+    if difficulty not in {"simple", "medium", "hard"}:
+        difficulty = "medium"
+    mentor_flag = payload.get("mentor", True)
+    if isinstance(mentor_flag, str):
+        mentor_flag = mentor_flag.strip().lower() in ("1", "true", "yes", "on")
+    mentor_enabled = bool(mentor_flag)
+    mentor_skip_llm = bool(payload.get("mentor_skip_llm"))
+
+    outcome.setdefault("item", {"role": "assistant", "text": ""})
+    outcome.setdefault("mentor_insight", "")
+
+    if not context_text.strip():
+        msg = (
+            "Please upload or paste case material first so the model can summarize it "
+            "and extract negotiation context."
+        )
+        outcome["item"] = {"role": "assistant", "text": msg}
+        yield msg
+        return
+
+    if action in {"help", "coach"}:
+        reply = (
+            "Practice coaching: clarify needs, defend value, and trade concessions only with clear reciprocity."
+        )
+        outcome["item"] = {"role": "assistant", "text": reply}
+        yield reply
+        return
+
+    state = _build_real_case_state(analysis, payload, practice_role)
+    state.setdefault("session_meta", {})["difficulty"] = difficulty
+    if practice_role == "seller":
+        yield from sandbox.iter_simulate_buyer_step_tokens(analysis, state, outcome)
+    else:
+        yield from sandbox.iter_simulate_seller_step_tokens(analysis, state, outcome)
+
+    item = outcome.get("item") or {}
+    reply = str(item.get("text") or "")
+    mentor_insight = ""
+    if mentor_enabled and not mentor_skip_llm:
+        try:
+            mentor_insight = str(
+                _mentor_insight_for_practice_turn(
+                    analysis,
+                    item,
+                    list(state.get("public_transcript") or []),
+                    practice_role,
+                )
+                or ""
+            ).strip()
+        except Exception:
+            mentor_insight = ""
+        if not mentor_insight:
+            mentor_insight = _fallback_mentor_insight(practice_role, reply)
+    outcome["mentor_insight"] = mentor_insight
+
+
 def _fallback_mentor_insight(practice_role: str, reply_text: str) -> str:
     side = "buyer" if practice_role == "seller" else "seller"
     trimmed = str(reply_text or "").strip()
@@ -120,6 +191,7 @@ def run(action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(mentor_flag, str):
         mentor_flag = mentor_flag.strip().lower() in ("1", "true", "yes", "on")
     mentor_enabled = bool(mentor_flag)
+    mentor_skip_llm = bool(payload.get("mentor_skip_llm"))
 
     if not context_text.strip():
         reply = "Please upload or paste case material first so the model can summarize it and extract negotiation context."
@@ -139,7 +211,7 @@ def run(action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         item = sandbox.simulate_seller_step(analysis, state)
     reply = str(item.get("text") or "")
     mentor_insight = ""
-    if mentor_enabled:
+    if mentor_enabled and not mentor_skip_llm:
         try:
             mentor_insight = str(
                 _mentor_insight_for_practice_turn(

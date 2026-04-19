@@ -60,10 +60,25 @@ chat_max_tokens = 520
 chat_temperature = 0.45
 chat_max_tokens = 520
 
+[chat_context]
+# Negotiation chat: cap pasted scenario text injected into model context (lower = faster/cheaper)
+raw_text_max_chars = 3600
+
+[mentor_schedule]
+# 1 = run mentor LLM every time (default). 2 = every other user message (Practice) or every other DEMO line — cuts latency/cost; strategy stays in buyer/seller prompts.
+practice_mentor_every_n_user_messages = 1
+demo_mentor_every_n_lines = 1
+
+[agent_context]
+# Public transcript lines in buyer/seller *generation* prompts (not evaluator)
+transcript_max_lines = 14
+
 [coaching_evaluator]
 # PASS/FAIL review for buyer or seller drafts
 temperature = 0.2
-max_tokens = 220
+max_tokens = 160
+# History window inside evaluator prompt only
+transcript_max_lines = 12
 
 [scenario_analyze]
 # analyze_scenario() JSON extraction from raw scenario text

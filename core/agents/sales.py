@@ -1,3 +1,5 @@
+from typing import Iterator
+
 from core.model_client import get_model_client
 from core.prompts.sales_prompt import build_sales_prompt
 
@@ -10,6 +12,16 @@ def sales_response(mode: str, user_message: str, context_text: str = "") -> str:
         return forced
     prompt = build_sales_prompt(mode, user_message, context_text)
     return get_model_client().complete(prompt)
+
+
+def sales_response_stream(mode: str, user_message: str, context_text: str = "") -> Iterator[str]:
+    """Stream seller-side reply tokens (DEMO free chat)."""
+    forced = _guardrail_override(user_message)
+    if forced:
+        yield forced
+        return
+    prompt = build_sales_prompt(mode, user_message, context_text)
+    yield from get_model_client().complete_stream(prompt)
 
 
 def sales_help(mode: str, user_message: str, context_text: str = "") -> str:

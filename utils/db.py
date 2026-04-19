@@ -330,19 +330,42 @@ def get_session_context(session_id, mode_key):
 # DETAIL / HISTORY
 # =========================
 
-def get_session_detail(session_id):
+def get_session_detail(
+    session_id: str,
+    *,
+    module_key: str = "module_2",
+    mode_key: Optional[str] = None,
+):
+    """
+    Session messages + context. When ``mode_key`` is set, only messages for that
+    workspace mode are returned (avoids mixing DEMO and Practice in one session).
+    """
     with get_connection() as conn:
-        messages = conn.execute(
-            "SELECT role, content, audit_json FROM messages WHERE session_id=? ORDER BY id ASC",
-            (session_id,)
-        ).fetchall()
+        if mode_key:
+            messages = conn.execute(
+                """
+                SELECT role, content, audit_json FROM messages
+                WHERE session_id=? AND module_key=? AND mode_key=?
+                ORDER BY id ASC
+                """,
+                (session_id, module_key, mode_key),
+            ).fetchall()
+        else:
+            messages = conn.execute(
+                """
+                SELECT role, content, audit_json FROM messages
+                WHERE session_id=? AND module_key=?
+                ORDER BY id ASC
+                """,
+                (session_id, module_key),
+            ).fetchall()
 
         context = get_session_context(session_id, "")
 
         return {
             "messages": [dict(m) for m in messages],
             "context": context,
-            "files": []
+            "files": [],
         }
 
 

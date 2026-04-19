@@ -1,6 +1,6 @@
 from functools import lru_cache
 from types import MappingProxyType
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
 from core.agents.auditor import audit_response
 from core.agents.sales import sales_auto, sales_help, sales_response
@@ -10,7 +10,7 @@ from core.prompt_loader import (
     get_deal_rule_text,
     get_sell_skill_text,
 )
-from utils.ai_output_config import clamp_demo_turns, get_int
+from utils.ai_output_config import clamp_demo_turns, get_float, get_int
 
 
 @lru_cache(maxsize=1)
@@ -414,6 +414,174 @@ def _mentor_insight_for_turn(
     )
 
 
+def iter_simulate_buyer_step_tokens(
+    analysis: Dict[str, Any],
+    simulation_state: Dict[str, Any],
+    outcome: Dict[str, Any],
+) -> Iterator[str]:
+    """
+    Same contract as ``simulate_buyer_step`` but yields raw model deltas for the
+    draft loop (each failed attempt is streamed, then the next attempt streams).
+    Sets ``outcome["item"]`` to the final ``{"role","text"}`` dict.
+    """
+    client = get_model_client()
+    buyer_private = simulation_state.setdefault("buyer_private_context", {})
+    seller_private = simulation_state.setdefault("seller_private_context", {})
+    coaching_recs = simulation_state.setdefault("coaching_recs", {"for_seller": "", "for_buyer": ""})
+    history = simulation_state.setdefault("history", [])
+    session_meta = simulation_state.setdefault("session_meta", {})
+    difficulty = str(session_meta.get("difficulty") or "medium").lower()
+    if difficulty == "simple" and _buyer_confirmation_loop_detected(simulation_state.get("public_transcript") or []):
+        buyer_private["coaching_advice_prev"] = (
+            "Do not repeat confirmation requests for the same point. "
+            "If terms are clear, acknowledge alignment and move toward closing."
+        )
+    turn_num = int(session_meta.get("turn_number") or 0) + 1
+    session_meta["turn_number"] = turn_num
+    session_meta["current_agent"] = "buyer"
+
+    final_text = ""
+    final_review: Dict[str, Any] = {}
+    final_draft = ""
+    for attempt in range(3):
+        parts: List[str] = []
+        messages = client.build_buyer_messages(analysis, simulation_state)
+        for delta in client.complete_chat_stream(
+            messages,
+            temperature=get_float("buyer_agent", "chat_temperature", 0.45),
+            max_tokens=get_int("buyer_agent", "chat_max_tokens", 520),
+        ):
+            parts.append(delta)
+        raw = "".join(parts)
+        text = client._clean_sim_utterance(raw) or (
+            "We still need stronger commercials on price and terms before we can close internal approval."
+        )
+        final_draft = text
+        review = client.evaluate_buyer_draft(analysis, simulation_state, text)
+        final_review = review
+        final_text = text
+        recommendation = str(review.get("recommendation") or "").strip()
+        verdict = str(review.get("verdict") or "FAIL").upper()
+        show_stream = verdict == "PASS" or attempt == 2
+        if show_stream:
+            for d in parts:
+                yield d
+        if verdict == "PASS":
+            if review.get("adjustment_for_next_turn"):
+                coaching_recs["for_seller"] = str(review.get("adjustment_for_next_turn"))
+                seller_private["coaching_advice_prev"] = str(review.get("adjustment_for_next_turn"))
+            break
+        if recommendation:
+            buyer_private["coaching_advice_prev"] = recommendation
+            coaching_recs["for_buyer"] = recommendation
+
+    text = final_text
+    item = {"role": "buyer_ai", "text": text}
+    simulation_state["public_transcript"].append({"speaker": "buyer", "text": text})
+    simulation_state["next_speaker"] = "seller"
+    risk = str(final_review.get("deadlock_risk") or "LOW").upper()
+    simulation_state["deadlock_risk"] = risk
+    increment_deadlock = risk == "HIGH" or (difficulty == "hard" and risk == "MEDIUM")
+    if increment_deadlock:
+        session_meta["deadlock_counter"] = int(session_meta.get("deadlock_counter") or 0) + 1
+    for p in _extract_agreed_points(text):
+        if p not in simulation_state["agreed_points"]:
+            simulation_state["agreed_points"].append(p)
+    history.append(
+        {
+            "turn": turn_num,
+            "agent": "buyer",
+            "draft": final_draft,
+            "verdict": str(final_review.get("verdict") or "FAIL"),
+            "final_output": text,
+            "mentor_note": "",
+            "violations": list(final_review.get("violations") or []),
+        }
+    )
+    outcome["item"] = item
+
+
+def iter_simulate_seller_step_tokens(
+    analysis: Dict[str, Any],
+    simulation_state: Dict[str, Any],
+    outcome: Dict[str, Any],
+) -> Iterator[str]:
+    """Streaming variant of ``simulate_seller_step``; sets ``outcome["item"]``."""
+    client = get_model_client()
+    seller_private = simulation_state.setdefault("seller_private_context", {})
+    coaching_recs = simulation_state.setdefault("coaching_recs", {"for_seller": "", "for_buyer": ""})
+    history = simulation_state.setdefault("history", [])
+    session_meta = simulation_state.setdefault("session_meta", {})
+    difficulty = str(session_meta.get("difficulty") or "medium").lower()
+    turn_num = int(session_meta.get("turn_number") or 0) + 1
+    session_meta["turn_number"] = turn_num
+    session_meta["current_agent"] = "seller"
+    if coaching_recs.get("for_seller"):
+        seller_private["coaching_advice_prev"] = str(coaching_recs.get("for_seller"))
+
+    final_text = ""
+    final_review: Dict[str, Any] = {}
+    final_draft = ""
+    for attempt in range(3):
+        parts: List[str] = []
+        messages = client.build_seller_messages(analysis, simulation_state)
+        for delta in client.complete_chat_stream(
+            messages,
+            temperature=get_float("seller_agent", "chat_temperature", 0.4),
+            max_tokens=get_int("seller_agent", "chat_max_tokens", 520),
+        ):
+            parts.append(delta)
+        raw = "".join(parts)
+        text = client._clean_sim_utterance(raw) or (
+            "Let’s tie any commercial movement to clear value exchange while keeping payment policy within 45 days."
+        )
+        final_draft = text
+        review = client.evaluate_seller_draft(analysis, simulation_state, text)
+        final_review = review
+        final_text = text
+        recommendation = str(review.get("recommendation") or "").strip()
+        verdict = str(review.get("verdict") or "FAIL").upper()
+        show_stream = verdict == "PASS" or attempt == 2
+        if show_stream:
+            for d in parts:
+                yield d
+        if verdict == "PASS":
+            if review.get("adjustment_for_next_turn"):
+                coaching_recs["for_buyer"] = str(review.get("adjustment_for_next_turn"))
+                simulation_state.setdefault("buyer_private_context", {})["coaching_advice_prev"] = str(
+                    review.get("adjustment_for_next_turn")
+                )
+            break
+        if recommendation:
+            seller_private["coaching_advice_prev"] = recommendation
+            coaching_recs["for_seller"] = recommendation
+
+    text = final_text
+    item = {"role": "sales_ai", "text": text}
+    simulation_state["public_transcript"].append({"speaker": "seller", "text": text})
+    simulation_state["next_speaker"] = "buyer"
+    risk = str(final_review.get("deadlock_risk") or "LOW").upper()
+    simulation_state["deadlock_risk"] = risk
+    increment_deadlock = risk == "HIGH" or (difficulty == "hard" and risk == "MEDIUM")
+    if increment_deadlock:
+        session_meta["deadlock_counter"] = int(session_meta.get("deadlock_counter") or 0) + 1
+    for p in _extract_agreed_points(text):
+        if p not in simulation_state["agreed_points"]:
+            simulation_state["agreed_points"].append(p)
+    history.append(
+        {
+            "turn": turn_num,
+            "agent": "seller",
+            "draft": final_draft,
+            "verdict": str(final_review.get("verdict") or "FAIL"),
+            "final_output": text,
+            "mentor_note": "",
+            "violations": list(final_review.get("violations") or []),
+        }
+    )
+    outcome["item"] = item
+
+
 def simulate_buyer_step(analysis: Dict[str, Any], simulation_state: Dict[str, Any]) -> Dict[str, str]:
     """Generate one buyer turn (draft->coach->decision->state update)."""
     client = get_model_client()
@@ -681,10 +849,15 @@ def simulate_step(
                 audit["summary"] = forced
 
     mentor_insight: Optional[str] = None
-    if mentor:
+    demo_mentor_every = get_int("mentor_schedule", "demo_mentor_every_n_lines", 1)
+    tn = int(session_meta.get("turn_number") or 0)
+    run_mentor_llm = bool(mentor) and (demo_mentor_every <= 1 or ((tn - 1) % demo_mentor_every == 0))
+    if run_mentor_llm:
         mentor_insight = _mentor_insight_for_turn(analysis, item, public_transcript)
         if history:
-            history[-1]["mentor_note"] = mentor_insight
+            history[-1]["mentor_note"] = mentor_insight or ""
+    elif mentor and history:
+        history[-1]["mentor_note"] = ""
 
     return {
         "ok": True,
