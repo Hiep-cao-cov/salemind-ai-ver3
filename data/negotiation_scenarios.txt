@@ -1,7 +1,7 @@
 id: price_pressure_basf
-title: BASF price pressure with annual volume review
+title: BASF price pressure — Covestro coatings raw material annual review
 persona: price-driven
-context: A regional coatings producer is reviewing annual supply terms for a specialty raw material. The buyer says BASF is 6 to 8 percent lower on price and asks Covestro to respond immediately. The customer also wants better payment terms and expects technical support to remain included. The account is important, but margin discipline is critical because this product line is already under pressure.
+context: Annual supply review for a regional coatings producer buying a Covestro specialty raw material aligned with polyurethane / isocyanate chemistry for their formulations (use exact grade and volume only if stated elsewhere in the case; otherwise stay generic). Procurement says BASF quoted roughly 6–8% lower on a comparable SKU and wants a Covestro response before internal sign-off. They also want improved payment conditions while keeping reformulation guidance, technical hotline, and stability testing support bundled at no extra charge. The relationship matters for Covestro share in coatings, but this product line is already margin-stretched—so the negotiation must test full delivered value (Incoterms, service, forecast, contract length, risk, sustainability attributes if raised), not a pure headline price match.
 ---
 id: payment_terms_launch
 title: Product launch with payment-term pressure

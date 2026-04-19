@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const mode = root.dataset.mode || 'sandbox';
   const sessionId = root.dataset.session || '';
 
-  const getPracticeRole = () => (root.dataset.practiceRole || 'buyer').toLowerCase();
+  const getPracticeRole = () => (root.dataset.practiceRole || 'seller').toLowerCase();
 
   const setPracticeRole = (role) => {
     const r = role === 'seller' ? 'seller' : 'buyer';
@@ -68,6 +68,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const sendBtn = document.getElementById('send-btn');
   const runBtn = document.getElementById('run-simulation-btn');
   const simNextBtn = document.getElementById('sim-next-btn');
+  const startPracticeBtn = document.getElementById('start-practice-btn');
+  const mentorToggle = document.getElementById('mentor-toggle');
+  const difficultySelect = document.getElementById('difficulty-select');
 
   let simApiHist = [];
   const newSimState = () => ({
@@ -109,6 +112,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
+  const hasPracticeChatRows = () => Boolean(chatPanel?.querySelector('.message-row'));
+
+  const refreshPracticeStartButton = () => {
+    if (!startPracticeBtn || mode !== 'real_case') return;
+    const analyzed = getHasContext();
+    const canStart = analyzed && !hasPracticeChatRows();
+    startPracticeBtn.disabled = !canStart;
+    if (!analyzed) {
+      startPracticeBtn.title =
+        'Choose a scenario source, then click Analyze Scenario. Start is available only after analysis completes.';
+    } else if (hasPracticeChatRows()) {
+      startPracticeBtn.title = 'Negotiation already begun. Use the composer to continue, or Finish to clear chat.';
+    } else if (getPracticeRole() === 'seller') {
+      startPracticeBtn.title = 'Begin practice: the AI buyer opens the conversation first.';
+    } else {
+      startPracticeBtn.title = 'Begin practice: the AI seller opens the conversation first.';
+    }
+  };
+
   const refreshSandboxSimButtons = () => {
     if (!runBtn || mode !== 'sandbox') return;
     if (!getHasContext()) {
@@ -129,6 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const lockWorkflow = () => {
     if (runBtn) runBtn.disabled = true;
     if (simNextBtn) simNextBtn.disabled = true;
+    if (startPracticeBtn) startPracticeBtn.disabled = true;
     if (sendBtn) sendBtn.disabled = true;
     if (input) input.disabled = true;
     setFinishButtonsDisabled(true);
@@ -139,6 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (input) input.disabled = false;
     setFinishButtonsDisabled(false);
     refreshSandboxSimButtons();
+    refreshPracticeStartButton();
   };
 
   const hideSummary = () => {
@@ -346,6 +370,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const message = (input?.value || '').trim();
     if (action === 'chat' && !message) return;
 
+    if (action === 'start') {
+      if (mode !== 'real_case' || !getHasContext() || hasPracticeChatRows()) return;
+    }
+
     if (action === 'chat' && !getHasContext()) {
       if (mode === 'real_case' || (mode === 'sandbox' && sourceType?.value === 'paste')) {
         await analyzeScenarioFromComposer(message);
@@ -367,11 +395,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     isProcessing = true;
 
-    if (message) appendMessage('user', message);
+    let lastUserBubble = null;
+    if (message) {
+      const userEl = appendMessage('user', message);
+      lastUserBubble = userEl?.bubble || null;
+    }
     if (input) input.value = '';
 
     const aiNode = appendMessage('assistant', '', '', true);
-    setProgress(18, 'Sending to model...');
+    if (action === 'start' && mode === 'real_case') {
+      setProgress(
+        18,
+        getPracticeRole() === 'seller' ? 'AI Buyer is opening...' : 'AI Seller is opening...'
+      );
+    } else {
+      setProgress(18, 'Sending to model...');
+    }
 
     try {
       const chatBody = {
@@ -382,6 +421,8 @@ document.addEventListener('DOMContentLoaded', () => {
       };
       if (mode === 'real_case') {
         chatBody.practice_role = getPracticeRole();
+        chatBody.difficulty = getDifficulty();
+        chatBody.mentor = isMentorEnabled();
       }
 
       const response = await fetch('/api/chat/stream', {
@@ -435,11 +476,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (payload.done) {
-              if (payload.audit?.summary && aiNode?.bubble) {
+              if (mode === 'real_case' && payload.user_audit?.summary && lastUserBubble) {
+                const aud = document.createElement('div');
+                aud.className = 'audit-chip';
+                aud.textContent = payload.user_audit.summary;
+                lastUserBubble.appendChild(aud);
+              } else if (mode !== 'real_case' && payload.audit?.summary && aiNode?.bubble) {
                 const audit = document.createElement('div');
                 audit.className = 'audit-chip';
                 audit.textContent = payload.audit.summary;
                 aiNode.bubble.appendChild(audit);
+              }
+              if (isMentorEnabled() && payload.mentor_insight && String(payload.mentor_insight).trim()) {
+                appendMessage('mentor', String(payload.mentor_insight).trim());
               }
               setProgress(100, 'Completed');
               resetProgress();
@@ -455,6 +504,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setProgress(0, 'Error');
     } finally {
       isProcessing = false;
+      if (mode === 'real_case') refreshPracticeStartButton();
     }
   };
 
@@ -504,6 +554,15 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const DEMO_TURNS = 18;
+  const isMentorEnabled = () => (mentorToggle ? Boolean(mentorToggle.checked) : true);
+  const getDifficulty = () => {
+    const value = String(difficultySelect?.value || 'medium').toLowerCase();
+    return ['simple', 'medium', 'hard'].includes(value) ? value : 'medium';
+  };
+  const clearMentorMessagesInChat = () => {
+    if (!chatPanel) return;
+    chatPanel.querySelectorAll('.message-row.mentor').forEach((node) => node.remove());
+  };
 
   /** One model call = one negotiation line; must hit /simulate-step (not legacy /simulate). */
   const fetchSandboxSimulateStep = async (apiHistPayload, simulationStatePayload) => {
@@ -515,7 +574,8 @@ document.addEventListener('DOMContentLoaded', () => {
         turns: DEMO_TURNS,
         api_hist: apiHistPayload,
         simulation_state: simulationStatePayload,
-        mentor: true
+        mentor: isMentorEnabled(),
+        difficulty: getDifficulty()
       })
     });
     const data = await res.json().catch(() => ({}));
@@ -568,7 +628,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data.item) {
         appendMessage(data.item.role, data.item.text || '');
       }
-      if (data.mentor_insight && String(data.mentor_insight).trim()) {
+      if (isMentorEnabled() && data.mentor_insight && String(data.mentor_insight).trim()) {
         appendMessage('mentor', String(data.mentor_insight).trim());
       }
       if (data.done && data.audit?.summary) {
@@ -609,7 +669,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data.item) {
         appendMessage(data.item.role, data.item.text || '');
       }
-      if (data.mentor_insight && String(data.mentor_insight).trim()) {
+      if (isMentorEnabled() && data.mentor_insight && String(data.mentor_insight).trim()) {
         appendMessage('mentor', String(data.mentor_insight).trim());
       }
       if (data.done && data.audit?.summary) {
@@ -643,6 +703,7 @@ document.addEventListener('DOMContentLoaded', () => {
   refreshAnalyzerCaption();
   if (mode === 'real_case') {
     setPracticeRole(getPracticeRole());
+    refreshPracticeStartButton();
   }
 
   if (mode === 'sandbox') {
@@ -663,6 +724,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (value !== 'buyer' && value !== 'seller') return;
       setPracticeRole(value);
       persistPracticeRole(value);
+      refreshPracticeStartButton();
     });
   });
 
@@ -744,10 +806,23 @@ document.addEventListener('DOMContentLoaded', () => {
     await startDemoSimulation();
   });
 
+  startPracticeBtn?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    await streamChat('start');
+  });
+
   simNextBtn?.addEventListener('click', async (e) => {
     e.preventDefault();
     e.stopPropagation();
     await nextDemoSimulationTurn();
+  });
+
+  mentorToggle?.addEventListener('change', () => {
+    if (!isMentorEnabled()) {
+      // Keep conversation turns intact; only hide mentor commentary when disabled.
+      clearMentorMessagesInChat();
+    }
   });
 
   document.querySelectorAll('[data-action]').forEach((button) => {

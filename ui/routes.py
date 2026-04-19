@@ -11,6 +11,7 @@ from core.chat_engine import (
     run_sandbox_simulation,
     run_sandbox_simulation_step,
 )
+from core.agents.real_case_user_audit import audit_real_case_user_message
 from core.model_client import get_active_model_info, scenario_analyzer_display_line
 from core.scenario_store import get_scenario_by_id, load_scenarios
 from modules.manager.dashboard import load_dashboard_data
@@ -55,6 +56,18 @@ def _base_context(request: Request) -> Dict[str, object]:
         "current_user": get_current_user(request),
         "job_roles": JOB_ROLES,
     }
+
+
+def _messages_with_parsed_audit(detail: Dict[str, Any]) -> List[Dict[str, Any]]:
+    out: List[Dict[str, Any]] = []
+    for m in detail.get("messages") or []:
+        row = dict(m)
+        try:
+            row["audit"] = json.loads(row.get("audit_json") or "{}")
+        except (json.JSONDecodeError, TypeError):
+            row["audit"] = {}
+        out.append(row)
+    return out
 
 
 def _serialize_context(mode_context: Dict[str, object] | None) -> Dict[str, object] | None:
@@ -169,9 +182,14 @@ def workspace(request: Request, mode: str, session_id: str | None = None):
         )
 
     sess_row = get_session(session_id) or {}
-    practice_role = str(sess_row.get("practice_role") or "buyer").lower()
-    if practice_role not in ("buyer", "seller"):
-        practice_role = "buyer"
+    raw_pr = sess_row.get("practice_role")
+    pr_norm = str(raw_pr or "").strip().lower()
+    if pr_norm in ("buyer", "seller"):
+        practice_role = pr_norm
+    else:
+        practice_role = "seller"
+        if mode == "real_case":
+            update_session_practice_role(session_id, practice_role)
 
     detail = get_session_detail(session_id)
     mode_context = _serialize_context(detail.get("context"))
@@ -182,7 +200,7 @@ def workspace(request: Request, mode: str, session_id: str | None = None):
             "mode": mode,
             "mode_label": MODE_LABELS[mode],
             "session_id": session_id,
-            "messages": detail["messages"],
+            "messages": _messages_with_parsed_audit(detail),
             "session_files": detail["files"],
             "recent_sessions": list_recent_sessions_for_user(user["id"], mode_key=mode, limit=12),
             "scenario_library": load_scenarios(),
@@ -339,7 +357,13 @@ async def api_finish_negotiation(request: Request):
     if not session or session["user_id"] != user["id"]:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    delete_messages_for_session_mode(session_id, "module_2", "real_case")
+    mode_key = str(session.get("mode_key") or "").strip()
+    if mode_key not in ("sandbox", "real_case"):
+        raise HTTPException(
+            status_code=400,
+            detail="Finish is only available in DEMO or Practice mode",
+        )
+    delete_messages_for_session_mode(session_id, "module_2", mode_key)
     if resolution == "full_reset":
         delete_session_context_row(session_id)
         delete_session_files_meta(session_id)
@@ -360,6 +384,7 @@ async def api_chat_stream(request: Request):
     mode = str(payload.get("mode", "")).strip()
     action = str(payload.get("action", "chat")).strip()
     message = str(payload.get("message", "")).strip()
+    action_lower = action.lower()
 
     if not session_id:
         raise HTTPException(status_code=400, detail="Session ID is required")
@@ -367,12 +392,29 @@ async def api_chat_stream(request: Request):
     if mode not in MODE_LABELS:
         raise HTTPException(status_code=400, detail="Invalid mode")
 
-    if not message and action == "chat":
+    if action_lower == "start" and mode != "real_case":
+        raise HTTPException(status_code=400, detail="Start action is only supported in Practice mode")
+
+    if not message and action_lower == "chat":
         raise HTTPException(status_code=400, detail="Message is required")
 
     session = get_session(session_id)
     if not session or session["user_id"] != user["id"]:
         raise HTTPException(status_code=404, detail="Session not found")
+
+    mode_context = get_session_context(session_id, mode)
+
+    if action_lower == "start":
+        if not mode_context:
+            raise HTTPException(status_code=400, detail="Select a scenario source and click Analyze Scenario first")
+        analysis_gate = mode_context.get("analysis")
+        if not isinstance(analysis_gate, dict):
+            analysis_gate = {}
+        if not str(analysis_gate.get("summary") or "").strip():
+            raise HTTPException(
+                status_code=400,
+                detail="Select a scenario source and click Analyze Scenario first",
+            )
 
     practice_in = str(payload.get("practice_role", "") or "").strip().lower()
     if practice_in in ("buyer", "seller"):
@@ -380,11 +422,10 @@ async def api_chat_stream(request: Request):
         if mode == "real_case":
             update_session_practice_role(session_id, practice_role)
     else:
-        practice_role = str(session.get("practice_role") or "buyer").lower()
+        practice_role = str(session.get("practice_role") or "seller").lower()
         if practice_role not in ("buyer", "seller"):
-            practice_role = "buyer"
+            practice_role = "seller"
 
-    mode_context = get_session_context(session_id, mode)
     analysis = mode_context.get("analysis", {}) if mode_context else {}
 
     context_parts: List[str] = []
@@ -403,24 +444,49 @@ async def api_chat_stream(request: Request):
 
     context_text = "\n\n".join(context_parts)
 
-    if message:
-        add_message(session_id, "module_2", mode, "user", message)
+    user_audit_for_sse: Dict[str, Any] = {}
+    if mode == "real_case" and message.strip():
+        user_audit_for_sse = audit_real_case_user_message(message, context_text)
+        if not isinstance(user_audit_for_sse, dict):
+            user_audit_for_sse = {}
 
-    chat_payload: Dict[str, str] = {"message": message, "context_text": context_text}
+    if message:
+        add_message(
+            session_id,
+            "module_2",
+            mode,
+            "user",
+            message,
+            audit=user_audit_for_sse if mode == "real_case" else None,
+        )
+
+    chat_payload: Dict[str, Any] = {"message": message, "context_text": context_text}
     if mode == "real_case":
         chat_payload["practice_role"] = practice_role
+        chat_payload["analysis"] = analysis
+        chat_payload["difficulty"] = payload.get("difficulty", "medium")
+        chat_payload["mentor"] = payload.get("mentor", True)
+        detail = get_session_detail(session_id)
+        chat_payload["history_messages"] = detail.get("messages", [])
 
     result = run_chat(mode, action, chat_payload)
 
     reply = str(result["reply"])
-    audit_payload = result.get("audit") if isinstance(result.get("audit"), dict) else {}
+    if mode == "real_case":
+        audit_payload: Dict[str, Any] = {}
+    else:
+        audit_payload = result.get("audit") if isinstance(result.get("audit"), dict) else {}
 
-    add_message(session_id, "module_2", mode, "assistant", reply, audit=audit_payload)
+    add_message(session_id, "module_2", mode, "assistant", reply, audit=audit_payload or {})
+    mentor_insight = result.get("mentor_insight")
+    mentor_text = str(mentor_insight).strip() if mentor_insight is not None else ""
+    if mentor_text:
+        add_message(session_id, "module_2", mode, "mentor", mentor_text)
 
     async def event_stream():
         for token in reply.split():
             yield f"data: {json.dumps({'token': token + ' '})}\n\n"
-        yield f"data: {json.dumps({'done': True, 'audit': audit_payload})}\n\n"
+        yield f"data: {json.dumps({'done': True, 'audit': audit_payload, 'user_audit': user_audit_for_sse, 'mentor_insight': mentor_text})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
@@ -490,6 +556,9 @@ async def api_sandbox_simulate_step(request: Request):
     if isinstance(mentor_flag, str):
         mentor_flag = mentor_flag.strip().lower() in ("1", "true", "yes", "on")
     mentor_enabled = bool(mentor_flag)
+    difficulty = str(payload.get("difficulty", "medium")).strip().lower()
+    if difficulty not in {"simple", "medium", "hard"}:
+        difficulty = "medium"
 
     result = run_sandbox_simulation_step(
         analysis,
@@ -497,7 +566,11 @@ async def api_sandbox_simulate_step(request: Request):
         simulation_state=simulation_state_in if isinstance(simulation_state_in, dict) else None,
         turns=turns,
         mentor=mentor_enabled,
+        difficulty=difficulty,
     )
+    if not mentor_enabled:
+        # Safety: force-disable mentor content in API response and persistence.
+        result["mentor_insight"] = None
 
     if result.get("item"):
         item = result["item"]

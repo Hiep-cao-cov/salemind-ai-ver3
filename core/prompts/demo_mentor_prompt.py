@@ -44,6 +44,7 @@ def build_demo_turn_mentor_prompt(
     utterance: str,
     scenario_context: str,
     recent_dialogue: str,
+    mentor_rules: str = "",
     max_words: int | None = None,
 ) -> str:
     """
@@ -59,6 +60,10 @@ def build_demo_turn_mentor_prompt(
         scenario = "(No scenario summary.)"
     recent = (recent_dialogue or "").strip() or "(No prior lines in this thread.)"
 
+    rules_text = (mentor_rules or "").strip() or (
+        "Analyze the latest turn and provide concise educational guidance with hidden intent, technique, watchout, and short advice."
+    )
+
     return f"""You are a master negotiator coaching B2B sales learners (e.g. Covestro-style chemicals deals).
 
 TASK: Write ONE short paragraph that helps the learner understand THIS turn only.
@@ -72,8 +77,12 @@ Scenario (facts — do not contradict):
 Prior dialogue (context):
 {recent}
 
+Mentor rules:
+{rules_text}
+
 In your paragraph, in plain English:
 - What this line means in plain language (the “real message”).
+- The likely hidden intent behind this line.
 - What tactic or pressure it uses (price, payment, time, competition, risk, relationship, etc.).
 - One practical angle for the seller (value defense, questions to ask, or what not to give away first).
 

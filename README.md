@@ -1,39 +1,59 @@
 # Covestro Strategy Lab Enterprise v2
 
-An enterprise-style negotiation training platform built with FastAPI + Jinja, focused on Module 2.
+Enterprise negotiation training app built with FastAPI + Jinja, focused on Module 2 workflows.
 
 ## Overview
 
-The application supports multiple user roles, multiple negotiation practice modes, SQLite session persistence, and cloud model integrations (OpenAI / AWS Bedrock) for context-aware responses.
+The app provides:
 
-## What's New in v2
+- Role-based login (`display_name`, `CWID`, `role`)
+- Two active workspace modes:
+  - `sandbox` (DEMO)
+  - `real_case` (Practice)
+- Scenario analysis and chat with persisted sessions/messages in SQLite
+- Optional cloud model integrations (OpenAI / AWS Bedrock), with deterministic fallback when not configured
 
-- Mode 1 (Sandbox) supports 4 scenario sources:
-  - scenario library file
-  - direct paste
-  - upload file
-  - AI-generated scenario
-- Mode 1 includes an AI vs AI negotiation workflow for 8-10 turns.
-- Modes 1, 2, and 3 display a model-generated scenario summary above the main chat area.
-- Mode 2 allows file upload or direct case-material paste in the composer.
-- Mode 3 loads scenarios from file and shows a negotiation summary before the drill.
-- The left sidebar now shows history for the current mode only.
+## Current Product Flow
+
+### 1) DEMO (`/workspace/sandbox`)
+
+- Scenario source options:
+  - AI create scenario
+  - Scenario library
+  - Upload file
+  - Paste scenario text
+- Step-by-step DEMO simulation (`Start DEMO` + `Next turn`)
+- Optional mentor insight per turn
+- Difficulty levels: `simple`, `medium`, `hard`
+- Help/Coach actions and normal negotiated chat with AI seller
+
+### 2) Practice (`/workspace/real_case`)
+
+- Scenario source options:
+  - Scenario library
+  - Paste case text
+  - Upload file
+- User can choose practice role (`buyer` or `seller`)
+- Scenario is analyzed first, then negotiation chat continues with role-aware responses
+- `Finish` action supports:
+  - keep scenario + clear chat
+  - full reset (clear context/files/chat metadata)
 
 ## Key Features
 
-- Multi-user onboarding with `Name` / `CWID` / `Role`.
-- Module 2 landing page with 4 mode cards.
-- Mode-specific Python files: Sandbox, Real Case, Reps, and Mentor.
-- Manager dashboard for usage analytics.
-- Session persistence with SQLite.
-- Message persistence split by module and mode.
-- Context injection for uploaded scenario files (without embeddings).
-- Clean workspace UI with streaming responses, typing animation, and progress bar.
-- OpenAI and Bedrock support only.
+- FastAPI backend with Jinja templates
+- Streaming chat responses (SSE)
+- Scenario analysis modes:
+  - `no_llm`
+  - `local_model`
+  - `cloud_model`
+- Manager analytics dashboard (`/manager`) for manager roles
+- SQLite persistence for users, sessions, context, and messages
+- Upload context extraction pipeline (no embeddings)
 
-## Local Setup and Run
+## Local Setup
 
-### 1) Create environment and install dependencies
+### 1) Create virtual environment and install dependencies
 
 #### macOS / Linux
 ```bash
@@ -49,22 +69,33 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-### 2) Run the application
+### 2) Run app
+
 ```bash
 uvicorn app:app --reload
 ```
 
-Open your browser at: `http://127.0.0.1:8000`
+Open: `http://127.0.0.1:8000`
 
-## Cloud Model Configuration
+## Environment Variables
 
 ### OpenAI
+
+#### macOS / Linux
 ```bash
 export OPENAI_API_KEY=your_key
 export OPENAI_MODEL=gpt-4o-mini
 ```
 
-### Bedrock
+#### Windows (PowerShell)
+```powershell
+$env:OPENAI_API_KEY="your_key"
+$env:OPENAI_MODEL="gpt-4o-mini"
+```
+
+### AWS Bedrock
+
+#### macOS / Linux
 ```bash
 export AWS_ACCESS_KEY_ID=your_key
 export AWS_SECRET_ACCESS_KEY=your_secret
@@ -72,7 +103,15 @@ export AWS_DEFAULT_REGION=ap-southeast-1
 export BEDROCK_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0
 ```
 
-If neither provider is configured, the app uses a deterministic fallback so it remains runnable.
+#### Windows (PowerShell)
+```powershell
+$env:AWS_ACCESS_KEY_ID="your_key"
+$env:AWS_SECRET_ACCESS_KEY="your_secret"
+$env:AWS_DEFAULT_REGION="ap-southeast-1"
+$env:BEDROCK_MODEL_ID="anthropic.claude-3-haiku-20240307-v1:0"
+```
+
+If neither provider is configured, the app still runs using fallback behavior.
 
 ## Roles
 
@@ -81,14 +120,13 @@ If neither provider is configured, the app uses a deterministic fallback so it r
 - Sales Distributor
 - HR
 
-`Sales Manager` and `HR` can access the manager dashboard.
+`Sales Manager` and `HR` can access manager endpoints/dashboard.
 
-## Operational Notes
+## Notes
 
-- Auto is available only in Sandbox and triggers the AI vs AI simulation workflow.
-- Real Case requires uploaded or pasted case context before negotiation chat is grounded.
-- No local models, no embeddings, and no LangGraph.
-- Startup is lightweight; model clients initialize lazily on first use.
+- Active frontend script is `ui/static/js/app.js`.
+- Step-by-step DEMO endpoint is `/api/sandbox/simulate-step`.
+- Model clients initialize lazily at runtime.
 
 ## Repository
 

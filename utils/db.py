@@ -102,7 +102,16 @@ def init_db():
         """)
 
         try:
-            conn.execute("ALTER TABLE sessions ADD COLUMN practice_role TEXT DEFAULT 'buyer'")
+            conn.execute("ALTER TABLE sessions ADD COLUMN practice_role TEXT DEFAULT 'seller'")
+        except sqlite3.OperationalError:
+            pass
+
+        # Legacy rows: practice_role omitted on INSERT used the column default (once 'buyer').
+        try:
+            conn.execute(
+                "UPDATE sessions SET practice_role = 'seller' "
+                "WHERE practice_role IS NULL OR TRIM(COALESCE(practice_role, '')) = ''"
+            )
         except sqlite3.OperationalError:
             pass
 
@@ -170,6 +179,15 @@ def create_session(user_id, module_key, mode_key, title):
             now_iso(),
             now_iso()
         ))
+
+        # INSERT omits practice_role; older DBs used DEFAULT 'buyer' — set Covestro default explicitly.
+        try:
+            conn.execute(
+                "UPDATE sessions SET practice_role=?, updated_at=? WHERE session_id=?",
+                ("seller", now_iso(), session_id),
+            )
+        except sqlite3.OperationalError:
+            pass
 
         return session_id
 

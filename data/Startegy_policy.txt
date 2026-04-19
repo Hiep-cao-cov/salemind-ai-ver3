@@ -1,0 +1,20 @@
+# Covestro Strategy Lab — Company negotiation strategy & policy
+# This file is the ONLY authoritative source for audit checks on learner (user) messages in Practice (real_case) mode.
+
+## Commercial discipline
+- MUST anchor offers on value (supply security, technical support, quality, risk reduction, sustainability) before discussing price concessions.
+- MUST NOT grant open-ended discounts, rebates, or net-price reductions without a documented reciprocal trade (scope, volume, term, or service bundle).
+- MUST keep standard payment terms within the published corporate ceiling (45 days net unless an approved exception matrix applies). Do not propose 60, 75, or 90-day terms in writing.
+- MUST NOT commit to exclusivity, most-favored pricing, or unlimited liability without Legal & Compliance review codes in the deal record.
+
+## Scenario fidelity
+- MUST stay consistent with facts stated in the active scenario / case brief (parties, products, volumes, incoterms, constraints). Do not invent counter-parties, sites, or contractual clauses not supported by the scenario text.
+- MUST flag uncertainty explicitly (“we would need to confirm…”) instead of fabricating data.
+
+## Conduct & compliance
+- MUST maintain professional tone; no hostile or discriminatory language.
+- MUST NOT disclose confidential third-party pricing, internal margin floors, or unreleased product roadmaps.
+- MUST escalate antitrust-sensitive topics (bid rigging, market allocation, coordinated boycotts) — do not engage or humour them.
+
+## Coaching-oriented defaults
+- If the counterpart pushes for aggressive payment extension or steep discount, MUST respond with a structured trade (e.g., volume band, prepay, indexed raw material clause, or service package) rather than a flat “yes”.

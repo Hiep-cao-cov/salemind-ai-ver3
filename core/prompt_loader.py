@@ -1,9 +1,11 @@
 from pathlib import Path
+from functools import lru_cache
 
 PROMPT_DIR = Path("data/prompts")
 LEGACY_PROMPT_DIR = Path("data")
 
 
+@lru_cache(maxsize=128)
 def load_prompt_template(path: str) -> str:
     """Load a prompt template from data paths.
 
@@ -49,9 +51,27 @@ def get_deal_rule_text() -> str:
     return load_prompt_template("rule_deal.txt")
 
 
-def load_prompt_file(filename: str) -> str:
-    """Backward-compatible wrapper for existing callers."""
-    return load_prompt_template(filename)
+def get_sell_skill_text() -> str:
+    """Return seller skill guidance for DEMO seller agent."""
+    return load_prompt_template("sell_skill.txt")
+
+
+def get_buy_skill_text() -> str:
+    """Return buyer skill guidance for DEMO buyer agent."""
+    return load_prompt_template("buy_skill.txt")
+
+
+def get_mentor_rule_text() -> str:
+    """Return mentor analysis rules for DEMO mentor agent."""
+    return load_prompt_template("mentor_rule.txt")
+
+
+def get_strategy_policy_text() -> str:
+    """Company strategy/policy for real_case user-turn audit only (single file, verbatim)."""
+    path = LEGACY_PROMPT_DIR / "Startegy_policy.txt"
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8")
 
 
 def render_prompt_template(filename: str, **kwargs) -> str:

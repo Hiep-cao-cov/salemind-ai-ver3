@@ -165,6 +165,7 @@
   line-height: 1.55;
   color: #1e1b4b;
   word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .workspace-v2 .field-hint.demo-latency-hint {
@@ -269,22 +270,31 @@
   font-weight: 500;
 }
 
-/* Phần radio - ĐÃ LÀM HẸP & ĐẸP HƠN */
+/*
+ * Hai lựa chọn Seller / Buyer: cùng một hàng, căn trái.
+ * Dùng grid 2 cột (không dùng flex): mỗi label.radio-row là display:grid (block)
+ * nên nếu cha chỉ là block thông thường hai label vẫn xếp dọc — grid hai cột ép nằm ngang.
+ */
+.workspace-v2 .practice-role-field .practice-role-radios,
 .workspace-v2 .practice-role-radios {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
   width: 100%;
-  max-width: 480px;           /* Chiều rộng tối ưu nhất */
-  margin: 0 auto;             /* Căn giữa */
+  max-width: 100%;
+  margin: 0;
+  align-items: stretch;
+  justify-items: stretch;
 }
 
 .workspace-v2 .practice-role-radios > .radio-row {
+  min-width: 0;
+  width: 100%;
+  max-width: none;
   display: grid;
   grid-template-columns: auto 4px 1fr;
   align-items: start;
   column-gap: 14px;
-  width: 100%;
   box-sizing: border-box;
   padding: 17px 20px;
   border-radius: 16px;

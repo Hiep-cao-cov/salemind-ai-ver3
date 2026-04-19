@@ -12,7 +12,17 @@ from core.prompts.demo_mentor_prompt import (
     fallback_demo_mentor_note,
     normalize_mentor_text,
 )
-from core.prompts.system_prompt import SYSTEM_FOUNDATION
+from core.prompts.real_case_mentor_prompt import (
+    REAL_CASE_MENTOR_MAX_WORDS,
+    build_real_case_mentor_prompt,
+    fallback_real_case_mentor_note,
+    normalize_real_case_mentor_text,
+)
+from core.prompt_loader import (
+    get_buy_skill_text,
+    get_mentor_rule_text,
+    get_sell_skill_text,
+)
 
 logger = get_logger(__name__)
 
@@ -264,6 +274,11 @@ class ModelClient:
             parts.append(f"Scenario narrative:\n{gs[:8000]}")
         return "\n\n".join(parts) if parts else "Generic B2B chemical supply negotiation."
 
+    def _full_negotiation_context(self, analysis: Dict[str, Any]) -> str:
+        """Compose dynamic negotiation context only (no static prompt files)."""
+        dynamic_ctx = self._analysis_to_simulation_context(analysis).strip()
+        return dynamic_ctx or "Generic B2B chemical supply negotiation."
+
     def mentor_analyze_demo_turn(
         self,
         *,
@@ -276,11 +291,16 @@ class ModelClient:
         Second-pass mentor commentary on one AI buyer/sales line in Sandbox DEMO.
         """
         ctx = self._analysis_to_simulation_context(analysis)
+        try:
+            mentor_rules = get_mentor_rule_text()
+        except Exception:
+            mentor_rules = ""
         prompt = build_demo_turn_mentor_prompt(
             speaker_label=speaker_label,
             utterance=utterance,
             scenario_context=ctx,
             recent_dialogue=recent_dialogue,
+            mentor_rules=mentor_rules,
             max_words=MENTOR_MAX_WORDS,
         )
         if self.provider not in {"openai", "bedrock"}:
@@ -289,6 +309,46 @@ class ModelClient:
         text = self.complete(prompt, temperature=0.28, max_tokens=approx_tokens)
         normalized = normalize_mentor_text(text or "")
         return normalized if normalized.strip() else fallback_demo_mentor_note(speaker_label, utterance)
+
+    def mentor_analyze_real_case_turn(
+        self,
+        *,
+        practice_role: str,
+        speaker_label: str,
+        utterance: str,
+        analysis: Dict[str, Any],
+        recent_dialogue: str,
+    ) -> str:
+        """
+        Mentor commentary for Practice (real_case): uses real_case_mentor_prompt frame only.
+        """
+        ctx = self._analysis_to_simulation_context(analysis)
+        try:
+            mentor_rules = get_mentor_rule_text()
+        except Exception:
+            mentor_rules = ""
+        pr = str(practice_role or "seller").strip().lower()
+        if pr not in ("buyer", "seller"):
+            pr = "seller"
+        prompt = build_real_case_mentor_prompt(
+            practice_role=pr,
+            speaker_label=speaker_label,
+            utterance=utterance,
+            scenario_context=ctx,
+            recent_dialogue=recent_dialogue,
+            mentor_rules=mentor_rules,
+            max_words=REAL_CASE_MENTOR_MAX_WORDS,
+        )
+        if self.provider not in {"openai", "bedrock"}:
+            return fallback_real_case_mentor_note(pr, speaker_label, utterance)
+        approx_tokens = min(900, max(320, int(REAL_CASE_MENTOR_MAX_WORDS * 2.8)))
+        text = self.complete(prompt, temperature=0.28, max_tokens=approx_tokens)
+        normalized = normalize_real_case_mentor_text(text or "")
+        return (
+            normalized
+            if normalized.strip()
+            else fallback_real_case_mentor_note(pr, speaker_label, utterance)
+        )
 
     @staticmethod
     def _clean_sim_utterance(raw: str) -> str:
@@ -334,38 +394,91 @@ class ModelClient:
 
     def build_buyer_messages(self, analysis: Dict[str, Any], simulation_state: Dict[str, Any]) -> List[Dict[str, str]]:
         """Build chat messages for the buyer agent only."""
-        context_text = self._analysis_to_simulation_context(analysis)
+        context_text = self._full_negotiation_context(analysis)
         public_transcript = simulation_state.get("public_transcript") or []
         buyer_private = simulation_state.get("buyer_private_context") or {}
+        difficulty = str((simulation_state.get("session_meta") or {}).get("difficulty") or "medium").lower()
+        coaching_for_buyer = str(buyer_private.get("coaching_advice_prev") or "").strip()
+        try:
+            buy_skill_text = get_buy_skill_text().strip()
+        except Exception:
+            buy_skill_text = ""
+        buyer_bias = (
+            "Bias: seek practical convergence and close when terms are reasonably aligned.\n"
+            "In SIMPLE mode, avoid repeated confirmation loops; ask at most one concise clarification question, then move toward closure.\n\n"
+            if difficulty == "simple"
+            else "Bias: keep balanced pressure while exploring room for agreement.\n\n"
+            if difficulty == "medium"
+            else "Bias: maintain a tougher stance, require stronger proof before concessions.\n\n"
+        )
+        is_opening = not public_transcript
+        if is_opening:
+            task_block = (
+                "OPENING TURN (you speak first—the public transcript is still empty):\n"
+                "Deliver ONE natural opening line as the buyer starting the meeting/call.\n"
+                "- You may use at most one short acknowledgement of the meeting or time if it fits (e.g. 'Thanks for making time'); then move straight to substance.\n"
+                "- Do not stack gratitude or formal filler: avoid repeated 'I appreciate', 'thank you so much', layered pleasantries, or consultant-speak.\n"
+                "- Anchor the line in the scenario: state your main commercial pressure, scope, or request (price/ESG/volume/terms/timeline) as appropriate.\n"
+                "Sound like a real B2B procurement conversation—direct and professional.\n"
+                "Output only natural spoken dialogue (one or two short sentences maximum). "
+                "You may include one sharp commercial question if it fits without sounding like generic small talk.\n"
+            )
+            user_content = "Opening turn: you speak first as buyer. Deliver your line."
+        else:
+            task_block = "Task instruction: ask at least one clarifying question and output only natural spoken dialogue."
+            user_content = "Continue the negotiation as buyer."
         system = (
-            f"{SYSTEM_FOUNDATION}\n\n"
             "You are the BUYER/CUSTOMER in a B2B chemicals negotiation.\n"
             "Push for commercial advantage while staying realistic and consistent with scenario facts.\n\n"
+            "Buyer skill reference:\n"
+            f"{buy_skill_text or '(Use disciplined buying tactics with realistic pressure and clarifying questions.)'}\n\n"
+            f"Negotiation difficulty: {difficulty.upper()}.\n"
+            f"{buyer_bias}"
             "Shared scenario context:\n"
             f"{context_text}\n\n"
             "Your private strategy (do NOT reveal explicitly):\n"
             f"{self._private_context_to_text(buyer_private)}\n\n"
             "Public transcript so far:\n"
-            f"{self._public_transcript_to_text(public_transcript)}\n\n"
-            "Respond with exactly ONE natural spoken line. No role labels, no bullets, no meta commentary."
+            f"{self._public_transcript_to_text(public_transcript, max_lines=20)}\n\n"
+            "Coaching recommendation for this turn:\n"
+            f"{coaching_for_buyer or '(No previous advice)'}\n\n"
+            f"{task_block}"
         )
-        return [{"role": "system", "content": system}, {"role": "user", "content": "Continue the negotiation as buyer."}]
+        return [{"role": "system", "content": system}, {"role": "user", "content": user_content}]
 
     def build_seller_messages(self, analysis: Dict[str, Any], simulation_state: Dict[str, Any]) -> List[Dict[str, str]]:
         """Build chat messages for the seller agent only."""
-        context_text = self._analysis_to_simulation_context(analysis)
+        context_text = self._full_negotiation_context(analysis)
         public_transcript = simulation_state.get("public_transcript") or []
         seller_private = simulation_state.get("seller_private_context") or {}
+        difficulty = str((simulation_state.get("session_meta") or {}).get("difficulty") or "medium").lower()
+        coaching_advice_prev = str(seller_private.get("coaching_advice_prev") or "").strip()
+        try:
+            sell_skill_text = get_sell_skill_text().strip()
+        except Exception:
+            sell_skill_text = ""
+        seller_bias = (
+            "Bias: aim for practical convergence and propose close-ready packaging.\n\n"
+            if difficulty == "simple"
+            else "Bias: keep firm value defense with selective flexibility.\n\n"
+            if difficulty == "medium"
+            else "Bias: keep a strict stance and avoid easy concessions unless high reciprocity is offered.\n\n"
+        )
         system = (
-            f"{SYSTEM_FOUNDATION}\n\n"
             "You are the COVESTRO B2B SELLER in a chemicals negotiation.\n"
             "Defend value and margin discipline while staying natural and persuasive.\n\n"
             "Shared scenario context:\n"
             f"{context_text}\n\n"
+            "Seller skill reference:\n"
+            f"{sell_skill_text or '(Use value-based sales discipline and reciprocal concession logic.)'}\n\n"
+            f"Negotiation difficulty: {difficulty.upper()}.\n"
+            f"{seller_bias}"
             "Your private strategy (do NOT reveal explicitly):\n"
             f"{self._private_context_to_text(seller_private)}\n\n"
             "Public transcript so far:\n"
-            f"{self._public_transcript_to_text(public_transcript)}\n\n"
+            f"{self._public_transcript_to_text(public_transcript, max_lines=20)}\n\n"
+            "Previous coaching advice to apply (if present):\n"
+            f"{coaching_advice_prev or '(No previous advice)'}\n\n"
             "Respond with exactly ONE natural spoken line. No role labels, no bullets, no meta commentary."
         )
         return [{"role": "system", "content": system}, {"role": "user", "content": "Continue the negotiation as seller."}]
@@ -380,13 +493,120 @@ class ModelClient:
         )
 
     def generate_seller_line(self, analysis: Dict[str, Any], simulation_state: Dict[str, Any]) -> str:
-        """Generate one seller line from two-agent state."""
+        """Generate one seller draft line from two-agent state."""
         messages = self.build_seller_messages(analysis, simulation_state)
         text = self.complete_chat(messages, temperature=0.4, max_tokens=520)
         cleaned = self._clean_sim_utterance(text)
         return cleaned or (
             "Let’s tie any commercial movement to clear value exchange while keeping payment policy within 45 days."
         )
+
+    def evaluate_seller_draft(
+        self,
+        analysis: Dict[str, Any],
+        simulation_state: Dict[str, Any],
+        draft_response: str,
+    ) -> Dict[str, Any]:
+        """
+        Coaching agent pass/fail review for seller draft.
+        """
+        context_text = self._full_negotiation_context(analysis)
+        history_text = self._public_transcript_to_text(simulation_state.get("public_transcript") or [], max_lines=24)
+        try:
+            seller_skill_text = get_sell_skill_text().strip()
+        except Exception:
+            seller_skill_text = ""
+        prompt = (
+            "You are a negotiation coaching evaluator for a B2B seller.\n"
+            "Evaluate the seller draft and decide PASS or FAIL.\n\n"
+            "Inputs:\n"
+            f"- Shared context:\n{context_text}\n\n"
+            f"- Full history:\n{history_text}\n\n"
+            f"- Seller draft response:\n{draft_response}\n\n"
+            "- Seller skill criteria:\n"
+            f"{seller_skill_text or 'Protect value, no unstructured discounting, payment term <=45 days, trade concessions only with reciprocity.'}\n\n"
+            "Output STRICT JSON with keys:\n"
+            '{"verdict":"PASS|FAIL","violations":["R1: ..."],"recommendation":"specific improvement guidance","deadlock_risk":"LOW|MEDIUM|HIGH","adjustment_for_next_turn":"..."}\n'
+            "Do not output anything except JSON."
+        )
+        raw = self.complete(prompt, temperature=0.2, max_tokens=220)
+        return self._normalize_coaching_result(self._extract_json(raw), fallback_recommendation=(
+            "Strengthen value defense and keep payment terms within 45 days before conceding anything."
+        ))
+
+    def evaluate_buyer_draft(
+        self,
+        analysis: Dict[str, Any],
+        simulation_state: Dict[str, Any],
+        draft_response: str,
+    ) -> Dict[str, Any]:
+        """
+        Coaching agent pass/fail review for buyer draft.
+        """
+        context_text = self._full_negotiation_context(analysis)
+        history_text = self._public_transcript_to_text(simulation_state.get("public_transcript") or [], max_lines=24)
+        try:
+            buyer_skill_text = get_buy_skill_text().strip()
+        except Exception:
+            buyer_skill_text = ""
+        is_opening = not (simulation_state.get("public_transcript") or [])
+        opening_eval = (
+            "Context: This is the OPENING buyer line (no prior dialogue yet). "
+            "PASS if it is scenario-grounded and commercially substantive with a natural B2B tone. "
+            "Do not FAIL solely for lacking a clarifying question if the line anchors a concrete request or pressure point. "
+            "FAIL if it is only empty pleasantries, generic thanks, or repetitive 'appreciate/thank you so much' filler without substance.\n\n"
+            if is_opening
+            else ""
+        )
+        prompt = (
+            "You are a negotiation coaching evaluator for a B2B buyer.\n"
+            "Evaluate the buyer draft and decide PASS or FAIL.\n\n"
+            "Inputs:\n"
+            f"- Shared context:\n{context_text}\n\n"
+            f"- Full history:\n{history_text}\n\n"
+            f"- Buyer draft response:\n{draft_response}\n\n"
+            "- Buyer skill criteria:\n"
+            f"{buyer_skill_text or 'Stay consistent, ask clear questions, avoid repetitive deadlock loops, and keep realistic negotiation quality.'}\n\n"
+            f"{opening_eval}"
+            "Output STRICT JSON with keys:\n"
+            '{"verdict":"PASS|FAIL","violations":["R1: ..."],"recommendation":"specific improvement guidance","deadlock_risk":"LOW|MEDIUM|HIGH","adjustment_for_next_turn":"..."}\n'
+            "Do not output anything except JSON."
+        )
+        raw = self.complete(prompt, temperature=0.2, max_tokens=220)
+        return self._normalize_coaching_result(self._extract_json(raw), fallback_recommendation=(
+            "Keep the buyer position consistent and ask at least one clear clarifying question."
+        ))
+
+    @staticmethod
+    def _normalize_coaching_result(parsed: Any, *, fallback_recommendation: str) -> Dict[str, Any]:
+        if isinstance(parsed, dict):
+            verdict = str(parsed.get("verdict") or parsed.get("decision") or "").strip().upper()
+            if verdict in {"PASS", "FAIL"}:
+                violations_raw = parsed.get("violations") or []
+                if isinstance(violations_raw, list):
+                    violations = [str(v).strip() for v in violations_raw if str(v).strip()]
+                else:
+                    text = str(violations_raw).strip()
+                    violations = [text] if text else []
+                risk = str(parsed.get("deadlock_risk") or "LOW").strip().upper()
+                if risk not in {"LOW", "MEDIUM", "HIGH"}:
+                    risk = "LOW"
+                rec = str(parsed.get("recommendation") or "").strip() or fallback_recommendation
+                adjust = str(parsed.get("adjustment_for_next_turn") or "").strip() or rec
+                return {
+                    "verdict": verdict,
+                    "violations": violations,
+                    "recommendation": rec,
+                    "deadlock_risk": risk,
+                    "adjustment_for_next_turn": adjust,
+                }
+        return {
+            "verdict": "FAIL",
+            "violations": [],
+            "recommendation": fallback_recommendation,
+            "deadlock_risk": "LOW",
+            "adjustment_for_next_turn": fallback_recommendation,
+        }
 
 
     def _extract_json(self, text: str) -> Optional[Any]:

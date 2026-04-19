@@ -20,12 +20,16 @@ MODE_PREPARERS = {
 }
 
 
-def run_chat(mode: str, action: str, payload: Dict[str, str]) -> Dict[str, Any]:
+def run_chat(mode: str, action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     normalized_action = resolve_action(action, mode)
     runner = MODE_RUNNERS.get(mode, sandbox.run)
     result = runner(normalized_action, payload)
-    if not result.get("audit"):
-        result["audit"] = audit_response(str(result.get("reply", "")))
+    # Practice (real_case): assistant-turn audit is handled separately on the USER message in routes.
+    if mode != "real_case":
+        if not result.get("audit"):
+            result["audit"] = audit_response(str(result.get("reply", "")))
+    else:
+        result["audit"] = {}
     return result
 
 
@@ -61,6 +65,7 @@ def run_sandbox_simulation_step(
     simulation_state: Dict[str, Any] | None = None,
     turns: int = 18,
     mentor: bool = True,
+    difficulty: str = "medium",
 ) -> Dict[str, Any]:
     return sandbox.simulate_step(
         analysis,
@@ -68,6 +73,7 @@ def run_sandbox_simulation_step(
         simulation_state=simulation_state,
         turns=turns,
         mentor=mentor,
+        difficulty=difficulty,
     )
 
 def prepare_mode_context_v2(

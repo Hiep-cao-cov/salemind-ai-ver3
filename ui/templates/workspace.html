@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block extra_head %}
-<link rel="stylesheet" href="/static/css/workspace-v2.css" />
+<link rel="stylesheet" href="/static/css/workspace-v2.css?v=practice-role-grid-1" />
 {% endblock %}
 {% block content %}
 <div class="workspace-v2">
@@ -50,14 +50,6 @@
       </div>
 
       <div class="action-cluster">
-        {% if mode == 'real_case' %}
-        <button type="button"
-                class="pill-btn finish-negotiation-btn"
-                data-open-finish-dialog
-                {% if not has_context %}disabled{% endif %}>
-          Finish
-        </button>
-        {% endif %}
         <button class="pill-btn" data-action="help">Help</button>
         {% if mode == 'sandbox' %}
         <button class="pill-btn" data-action="auto">Auto</button>
@@ -192,6 +184,26 @@
         <div class="scenario-actions">
           <button type="submit" class="secondary-btn" id="analyze-btn">Analyze Scenario</button>
 
+          {% if mode in ['sandbox', 'real_case'] %}
+          <label class="small-text" style="display:flex;align-items:center;gap:8px;">
+            Difficulty
+            <select id="difficulty-select" style="min-width:110px;">
+              <option value="simple">Simple</option>
+              <option value="medium" selected>Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </label>
+          <label class="small-text" style="display:flex;align-items:center;gap:8px;">
+            <input type="checkbox" id="mentor-toggle" checked>
+            Mentor insight
+          </label>
+          {% endif %}
+          {% if mode == 'real_case' %}
+          <button type="button" id="start-practice-btn"
+                  class="primary-btn" disabled>
+            Start
+          </button>
+          {% endif %}
           {% if mode == 'sandbox' %}
           <button type="button" id="run-simulation-btn"
                   class="primary-btn" disabled>
@@ -285,6 +297,9 @@
               {% if msg.role == 'mentor' %}Mentor{% elif msg.role == 'buyer_ai' %}AI Buyer{% elif msg.role == 'sales_ai' %}AI Sales{% elif msg.role == 'system' %}System{% elif msg.role == 'user' %}You{% else %}{{ msg.role }}{% endif %}
             </div>
             <div class="bubble-text {% if msg.role == 'mentor' %}mentor-body{% endif %}">{{ msg.content }}</div>
+            {% if mode == 'real_case' and msg.role == 'user' and msg.audit and msg.audit.summary %}
+            <div class="audit-chip">{{ msg.audit.summary }}</div>
+            {% endif %}
           </div>
         </div>
         {% endfor %}
@@ -303,7 +318,7 @@
         <div class="composer-footer">
           <div class="small-text">{{ current_user.display_name }}</div>
           <div class="composer-actions">
-            {% if mode == 'real_case' %}
+            {% if mode in ['sandbox', 'real_case'] %}
             <button type="button"
                     class="secondary-btn finish-negotiation-btn composer-finish-btn"
                     data-open-finish-dialog
@@ -333,11 +348,16 @@
   <div id="progress-label" class="progress-label">Ready</div>
 </div>
 
-{% if mode == 'real_case' %}
+{% if mode in ['sandbox', 'real_case'] %}
 <dialog id="finish-negotiation-dialog" class="finish-dialog">
   <div class="finish-dialog-panel">
+    {% if mode == 'sandbox' %}
+    <h3 class="finish-dialog-title">End this DEMO session?</h3>
+    <p class="finish-dialog-copy">Stop the simulation and clear the chat transcript. Your analyzed scenario can stay loaded so you can run DEMO again.</p>
+    {% else %}
     <h3 class="finish-dialog-title">End this practice round?</h3>
     <p class="finish-dialog-copy">Confirm to stop negotiating. You can analyze again anytime.</p>
+    {% endif %}
     <div class="finish-dialog-actions">
       <button type="button" class="secondary-btn" id="finish-dialog-cancel">Cancel</button>
       <button type="button" class="primary-btn finish-option-btn" data-finish-resolution="keep_scenario">
