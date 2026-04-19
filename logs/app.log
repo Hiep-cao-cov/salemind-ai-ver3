@@ -1346,3 +1346,5 @@
 2026-04-19 21:09:08,314 | INFO | core.model_client | Calling model provider=openai
 2026-04-19 21:09:11,260 | INFO | core.model_client | Calling model provider=openai
 2026-04-19 21:09:15,078 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 21:11:11,863 | INFO | app | Application started and database initialized.
+2026-04-19 21:11:11,863 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
