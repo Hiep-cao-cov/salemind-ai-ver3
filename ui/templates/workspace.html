@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block extra_head %}
-<link rel="stylesheet" href="/static/css/workspace-v2.css?v=demo-composer-toolbar-1" />
+<link rel="stylesheet" href="/static/css/workspace-v2.css?v=sidebar-delete-1" />
 {% endblock %}
 {% block content %}
 <div class="workspace-v2">
@@ -24,7 +24,51 @@
   </div>
 </section>
 
-<div id="workspace-layout" class="workspace-layout no-sidebar">
+<div id="workspace-layout" class="workspace-layout workspace-layout--sidebar">
+  <aside id="workspace-session-sidebar" class="workspace-session-sidebar" aria-label="Session history">
+    <div class="workspace-session-sidebar-inner">
+      <div class="workspace-sidebar-toolbar">
+        <button type="button"
+                id="workspace-sidebar-toggle"
+                class="workspace-sidebar-icon-btn workspace-sidebar-toggle"
+                aria-expanded="true"
+                aria-controls="workspace-sidebar-panel"
+                title="Collapse sidebar">
+          <span class="workspace-sidebar-toggle-chevron" aria-hidden="true"></span>
+        </button>
+      </div>
+      <div id="workspace-sidebar-panel" class="workspace-sidebar-panel">
+        <div class="workspace-sidebar-heading">History</div>
+        <nav class="workspace-sidebar-nav" aria-label="Recent sessions">
+          {% if recent_sessions %}
+            {% for s in recent_sessions %}
+            {% set stitle = s.title or 'Untitled session' %}
+            <div class="workspace-sidebar-row {% if s.session_id == session_id %}is-active{% endif %}">
+              <a class="workspace-sidebar-link"
+                 href="/workspace/{{ mode }}?session_id={{ s.session_id }}"
+                 title="{{ stitle }}">
+                <span class="workspace-sidebar-link-icon" aria-hidden="true">{{ stitle[:1]|e }}</span>
+                <span class="workspace-sidebar-link-body">
+                  <span class="workspace-sidebar-link-title">{{ stitle }}</span>
+                  {% if s.updated_at or s.created_at %}
+                  <span class="workspace-sidebar-link-meta">{{ s.updated_at or s.created_at }}</span>
+                  {% endif %}
+                </span>
+              </a>
+              <button type="button"
+                      class="workspace-sidebar-delete"
+                      data-delete-session="{{ s.session_id }}"
+                      title="Delete this session"
+                      aria-label="Delete session">×</button>
+            </div>
+            {% endfor %}
+          {% else %}
+            <p class="workspace-sidebar-empty">No sessions yet for this mode.</p>
+          {% endif %}
+        </nav>
+      </div>
+    </div>
+  </aside>
   <div id="workspace-shell" class="workspace-shell">
     <!-- ================= MAIN ================= -->
     <main id="workspace-root"
@@ -40,24 +84,49 @@
     <!-- HEADER -->
     <div class="workspace-header premium-header">
 
-      <div>
-        <div class="eyebrow">
-          <h4>Role Play Simulation Mode</h4>
-        </div>
-        <h2>{{ mode_label }}</h2>
+      <div class="workspace-header-top">
+        <div>
+          <div class="eyebrow">
+            <h4>Role Play Simulation Mode</h4>
+          </div>
+          <h2>{{ mode_label }}</h2>
 
-        <div class="muted-copy workspace-mode-blurb">
-          {% if mode == 'sandbox' %}
-          <p>Create or load a scenario → analyze → chat with AI Seller or run DEMO simulation.</p>
-          {% elif mode == 'real_case' %}
-          <p>Paste or upload your real case, or pick a library scenario → analyze → continue the negotiation.</p>
-          {% endif %}
+          <div class="muted-copy workspace-mode-blurb">
+            {% if mode == 'sandbox' %}
+            <p>Create or load a scenario → analyze → run the step-by-step <strong>DEMO</strong> (AI buyer &amp; seller). Switch to <strong>Practice</strong> for typed negotiation with the AI counterparty.</p>
+            {% elif mode == 'real_case' %}
+            <p>Paste your case in Step 1, upload a file, or pick a library scenario → analyze → use <strong>Start</strong> then the composer to negotiate.</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="action-cluster">
+          <button type="button" class="pill-btn" data-action="help">Help</button>
+          <button type="button" class="pill-btn" data-action="coach">Coach</button>
         </div>
       </div>
 
-      <div class="action-cluster">
-        <button class="pill-btn" data-action="help">Help</button>
-        <button class="pill-btn" data-action="coach">Coach</button>
+      <div class="workspace-header-meta">
+        <nav class="workspace-stepper" aria-label="Workspace progress">
+          <div class="workspace-step {% if not has_context %}is-active{% elif has_context %}is-complete{% endif %}" data-ws-step="1">
+            <span class="workspace-step-num" aria-hidden="true">1</span>
+            <span class="workspace-step-label">Prepare</span>
+          </div>
+          <span class="workspace-step-connector" aria-hidden="true"></span>
+          <div class="workspace-step {% if has_context %}is-complete{% else %}is-upcoming{% endif %}" data-ws-step="2">
+            <span class="workspace-step-num" aria-hidden="true">2</span>
+            <span class="workspace-step-label">Review</span>
+          </div>
+          <span class="workspace-step-connector" aria-hidden="true"></span>
+          <div class="workspace-step {% if has_context %}is-active{% else %}is-upcoming{% endif %}" data-ws-step="3">
+            <span class="workspace-step-num" aria-hidden="true">3</span>
+            <span class="workspace-step-label">Negotiate</span>
+          </div>
+        </nav>
+        <div class="workspace-run-chips" id="workspace-run-chips" aria-live="polite">
+          <span class="run-chip" id="chip-difficulty">Difficulty: Medium</span>
+          <span class="run-chip run-chip--mentor" id="chip-mentor">Mentor: on</span>
+        </div>
       </div>
 
     </div>
@@ -140,7 +209,7 @@
               <option value="paste">Paste my scenario</option>
               {% elif mode == 'real_case' %}
               <option value="library">Use Scenarios</option>
-              <option value="paste" selected>Paste case in composer</option>
+              <option value="paste" selected>Paste case in Step 1</option>
               <option value="upload">Upload file</option>
               {% else %}
               <option value="library">Use Scenarios</option>
@@ -188,17 +257,17 @@
           <button type="submit" class="secondary-btn" id="analyze-btn">Analyze Scenario</button>
 
           {% if mode in ['sandbox', 'real_case'] %}
-          <label class="small-text" style="display:flex;align-items:center;gap:8px;">
-            Difficulty
-            <select id="difficulty-select" style="min-width:110px;">
+          <label class="small-text scenario-action-field scenario-action-field--difficulty">
+            <span class="scenario-action-label">Difficulty</span>
+            <select id="difficulty-select" class="scenario-difficulty-select">
               <option value="simple">Simple</option>
               <option value="medium" selected>Medium</option>
               <option value="hard">Hard</option>
             </select>
           </label>
-          <label class="small-text" style="display:flex;align-items:center;gap:8px;">
+          <label class="small-text scenario-action-field scenario-action-field--mentor">
             <input type="checkbox" id="mentor-toggle" checked>
-            Mentor insight
+            <span class="scenario-action-label">Mentor insight</span>
           </label>
           {% endif %}
           {% if mode == 'real_case' %}
@@ -266,11 +335,10 @@
           <h3>Negotiation Workspace</h3>
         </div>
 
-        {% if has_context %}
-        <span class="status-badge ready">Enabled</span>
-        {% else %}
-        <span class="status-badge locked">Locked</span>
-        {% endif %}
+        <span id="negotiation-workspace-badge"
+              class="status-badge {% if has_context %}ready{% else %}locked{% endif %}">
+          {% if has_context %}Enabled{% else %}Locked{% endif %}
+        </span>
       </div>
 
       <div id="chat-panel" class="chat-panel">
@@ -299,7 +367,14 @@
             <div class="bubble-meta">
               {% if msg.role == 'mentor' %}Mentor{% elif msg.role == 'buyer_ai' %}AI Buyer{% elif msg.role == 'sales_ai' %}AI Sales{% elif msg.role == 'system' %}System{% elif msg.role == 'user' %}You{% else %}{{ msg.role }}{% endif %}
             </div>
-            <div class="bubble-text {% if msg.role == 'mentor' %}mentor-body{% endif %}">{{ msg.content }}</div>
+            {% if msg.role == 'mentor' %}
+            <details class="mentor-bubble-details" open>
+              <summary class="mentor-bubble-summary">Full coaching text</summary>
+              <div class="bubble-text mentor-body mentor-scroll-region">{{ msg.content }}</div>
+            </details>
+            {% else %}
+            <div class="bubble-text">{{ msg.content }}</div>
+            {% endif %}
             {% if mode == 'real_case' and msg.role == 'user' and msg.audit and msg.audit.summary %}
             <div class="audit-chip">{{ msg.audit.summary }}</div>
             {% endif %}

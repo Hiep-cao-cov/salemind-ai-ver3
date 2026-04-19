@@ -217,6 +217,35 @@ def update_session_practice_role(session_id: str, practice_role: str) -> None:
         )
 
 
+def update_session_title(session_id: str, title: str, max_len: int = 72) -> None:
+    t = (title or "").strip().replace("\n", " ")
+    if not t:
+        return
+    if len(t) > max_len:
+        t = t[: max_len - 1].rstrip() + "…"
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE sessions SET title=?, updated_at=? WHERE session_id=?",
+            (t, now_iso(), session_id),
+        )
+
+
+def delete_session_for_user(session_id: str, user_id: str) -> bool:
+    """
+    Remove a session and all related rows. Returns True only if the session
+    existed and belonged to user_id.
+    """
+    session = get_session(session_id)
+    if not session or str(session.get("user_id") or "") != str(user_id):
+        return False
+    with get_connection() as conn:
+        conn.execute("DELETE FROM messages WHERE session_id=?", (session_id,))
+        conn.execute("DELETE FROM session_files WHERE session_id=?", (session_id,))
+        conn.execute("DELETE FROM session_context WHERE session_id=?", (session_id,))
+        conn.execute("DELETE FROM sessions WHERE session_id=?", (session_id,))
+    return True
+
+
 def delete_messages_for_session_mode(session_id: str, module_key: str, mode_key: str) -> None:
     with get_connection() as conn:
         conn.execute(

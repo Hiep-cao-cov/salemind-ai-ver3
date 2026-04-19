@@ -1,5 +1,6 @@
 import json
-from typing import Dict, List, Any
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
@@ -28,6 +29,7 @@ from utils.db import (
     delete_messages_for_session_mode,
     delete_session_context_row,
     delete_session_files_meta,
+    delete_session_for_user,
     get_manager_analytics,
     get_session,
     get_session_context,
@@ -35,6 +37,7 @@ from utils.db import (
     list_recent_sessions_for_user,
     update_session_mode,
     update_session_practice_role,
+    update_session_title,
     upsert_session_context,
     upsert_user,
 )
@@ -53,6 +56,22 @@ MODE_LABELS: Dict[str, str] = {
     "sandbox": "DEMO",
     "real_case": "PRACTICE",
 }
+
+
+def _default_session_list_title(mode: str) -> str:
+    """Short, human-readable label for a brand-new workspace session."""
+    label = MODE_LABELS.get(mode, mode)
+    dt = datetime.utcnow()
+    return f"{label} · {dt.strftime('%d %b %Y, %H:%M')}"
+
+
+def _maybe_rename_session_after_analysis(session_id: str, mode: str, analysis: Dict[str, Any]) -> None:
+    """Prefer the scenario analysis title so the sidebar is easy to scan."""
+    title = (analysis or {}).get("title")
+    if title and str(title).strip():
+        update_session_title(session_id, str(title).strip())
+    else:
+        update_session_title(session_id, _default_session_list_title(mode))
 
 
 def _base_context(request: Request) -> Dict[str, object]:
@@ -181,7 +200,7 @@ def module2(request: Request):
 
 
 @router.get("/workspace/{mode}", response_class=HTMLResponse)
-def workspace(request: Request, mode: str, session_id: str | None = None):
+def workspace(request: Request, mode: str):
     user = _sync_db_user(request)
 
     normalized_mode = (mode or "").strip().lower()
@@ -189,28 +208,30 @@ def workspace(request: Request, mode: str, session_id: str | None = None):
         normalized_mode = DEFAULT_MODE
     mode = normalized_mode
 
-    if session_id:
-        session = get_session(session_id)
-        if not session or session["user_id"] != user["id"]:
+    # Read from query string only (avoids FastAPI treating `session_id` like a cookie param).
+    raw_sid = (request.query_params.get("session_id") or "").strip()
+    if raw_sid:
+        session = get_session(raw_sid)
+        if not session or str(session.get("user_id") or "") != str(user["id"]):
             raise HTTPException(status_code=404, detail="Session not found")
+        session_id = raw_sid
         update_session_mode(session_id, mode)
     else:
-        session_id = create_session(
-            user_id=user["id"],
-            module_key="module_2",
-            mode_key=mode,
-            title=f"{MODE_LABELS[mode]} Session",
-        )
+        # No DB row until the user successfully runs Analyze (session created in /api/scenario/prepare).
+        session_id = ""
 
-    sess_row = get_session(session_id) or {}
-    raw_pr = sess_row.get("practice_role")
-    pr_norm = str(raw_pr or "").strip().lower()
-    if pr_norm in ("buyer", "seller"):
-        practice_role = pr_norm
+    if session_id:
+        sess_row = get_session(session_id) or {}
+        raw_pr = sess_row.get("practice_role")
+        pr_norm = str(raw_pr or "").strip().lower()
+        if pr_norm in ("buyer", "seller"):
+            practice_role = pr_norm
+        else:
+            practice_role = "seller"
+            if mode == "real_case":
+                update_session_practice_role(session_id, practice_role)
     else:
         practice_role = "seller"
-        if mode == "real_case":
-            update_session_practice_role(session_id, practice_role)
 
     detail = get_session_detail(session_id, module_key="module_2", mode_key=mode)
     mode_context = _serialize_context(detail.get("context"))
@@ -249,25 +270,24 @@ def workspace(request: Request, mode: str, session_id: str | None = None):
 @router.post("/api/scenario/prepare")
 async def api_prepare_scenario(
     request: Request,
-    session_id: str = Form(...),
+    file: UploadFile | None = File(None),
+    session_id: str = Form(""),
     mode: str = Form(...),
     source_type: str = Form(...),
     analyzer_mode: str = Form("no_llm"),
     scenario_key: str = Form(""),
     content: str = Form(""),
-    file: UploadFile | None = File(None),
 ):
     user = require_user(request)
-    session = get_session(session_id)
-
-    if not session or session["user_id"] != user["id"]:
-        raise HTTPException(status_code=404, detail="Session not found")
+    sid_in = (session_id or "").strip()
 
     if mode not in {"sandbox", "real_case"}:
         raise HTTPException(status_code=400, detail="This mode does not support scenario preparation")
 
     raw_text = ""
     source_name = ""
+    upload_bytes: Optional[bytes] = None
+    upload_filename: Optional[str] = None
 
     if source_type == "library":
         scenario = get_scenario_by_id(scenario_key)
@@ -279,20 +299,40 @@ async def api_prepare_scenario(
     elif source_type == "upload":
         if not file:
             raise HTTPException(status_code=400, detail="File is required")
-
-        data = await file.read()
-        file_result = save_uploaded_context(session_id, file.filename, data)
-
-        raw_text = str(file_result["extracted_text"])
-        source_name = str(file_result["file_name"])
-
-        if not raw_text.strip():
-            raise HTTPException(status_code=400, detail="No readable text found in the uploaded file")
+        upload_bytes = await file.read()
+        upload_filename = file.filename
 
     elif source_type == "ai":
         raw_text = content.strip()
         source_name = "AI Generated Scenario"
+    else:
+        raw_text = content.strip()
+        source_name = "Direct Input"
+        if not raw_text.strip():
+            raise HTTPException(status_code=400, detail="Scenario content is required")
 
+    if sid_in:
+        session = get_session(sid_in)
+        if not session or str(session.get("user_id") or "") != str(user["id"]):
+            raise HTTPException(status_code=404, detail="Session not found")
+        session_id = sid_in
+    else:
+        session_id = create_session(
+            user_id=user["id"],
+            module_key="module_2",
+            mode_key=mode,
+            title=_default_session_list_title(mode),
+        )
+
+    if source_type == "upload":
+        assert upload_bytes is not None
+        file_result = save_uploaded_context(session_id, upload_filename, upload_bytes)
+        raw_text = str(file_result["extracted_text"])
+        source_name = str(file_result["file_name"])
+        if not raw_text.strip():
+            raise HTTPException(status_code=400, detail="No readable text found in the uploaded file")
+
+    if source_type == "ai":
         analysis = prepare_mode_context_v2(
             mode=mode,
             source_type=source_type,
@@ -310,14 +350,8 @@ async def api_prepare_scenario(
             analysis.get("generated_scenario", "") or raw_text,
             analysis,
         )
-        return JSONResponse({"ok": True, "context": analysis})
-
-    else:
-        raw_text = content.strip()
-        source_name = "Direct Input"
-
-        if not raw_text:
-            raise HTTPException(status_code=400, detail="Scenario content is required")
+        _maybe_rename_session_after_analysis(session_id, mode, analysis)
+        return JSONResponse({"ok": True, "context": analysis, "session_id": session_id})
 
     analysis = prepare_mode_context_v2(
         mode=mode,
@@ -336,8 +370,9 @@ async def api_prepare_scenario(
         raw_text,
         analysis,
     )
+    _maybe_rename_session_after_analysis(session_id, mode, analysis)
 
-    return JSONResponse({"ok": True, "context": analysis})
+    return JSONResponse({"ok": True, "context": analysis, "session_id": session_id})
 
 
 # =========================
@@ -355,9 +390,21 @@ async def api_session_practice_role(request: Request):
     if not session_id:
         raise HTTPException(status_code=400, detail="Session ID is required")
     session = get_session(session_id)
-    if not session or session["user_id"] != user["id"]:
+    if not session or str(session.get("user_id") or "") != str(user["id"]):
         raise HTTPException(status_code=404, detail="Session not found")
     update_session_practice_role(session_id, role)
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/session/delete")
+async def api_session_delete(request: Request):
+    user = _sync_db_user(request)
+    payload = await request.json()
+    session_id = str(payload.get("session_id", "")).strip()
+    if not session_id:
+        raise HTTPException(status_code=400, detail="Session ID is required")
+    if not delete_session_for_user(session_id, user["id"]):
+        raise HTTPException(status_code=404, detail="Session not found")
     return JSONResponse({"ok": True})
 
 
@@ -375,7 +422,7 @@ async def api_finish_negotiation(request: Request):
     if not session_id:
         raise HTTPException(status_code=400, detail="Session ID is required")
     session = get_session(session_id)
-    if not session or session["user_id"] != user["id"]:
+    if not session or str(session.get("user_id") or "") != str(user["id"]):
         raise HTTPException(status_code=404, detail="Session not found")
 
     mode_key = str(session.get("mode_key") or "").strip()
@@ -420,7 +467,7 @@ async def api_chat_stream(request: Request):
         raise HTTPException(status_code=400, detail="Message is required")
 
     session = get_session(session_id)
-    if not session or session["user_id"] != user["id"]:
+    if not session or str(session.get("user_id") or "") != str(user["id"]):
         raise HTTPException(status_code=404, detail="Session not found")
 
     mode_context = get_session_context(session_id, mode)
@@ -608,7 +655,7 @@ async def api_sandbox_simulate_step(request: Request):
         raise HTTPException(status_code=400, detail="Session ID is required")
 
     session = get_session(session_id)
-    if not session or session["user_id"] != user["id"]:
+    if not session or str(session.get("user_id") or "") != str(user["id"]):
         raise HTTPException(status_code=404, detail="Session not found")
 
     mode_context = get_session_context(session_id, "sandbox")
@@ -676,7 +723,7 @@ async def api_sandbox_simulate(request: Request):
         raise HTTPException(status_code=400, detail="Session ID is required")
 
     session = get_session(session_id)
-    if not session or session["user_id"] != user["id"]:
+    if not session or str(session.get("user_id") or "") != str(user["id"]):
         raise HTTPException(status_code=404, detail="Session not found")
 
     mode_context = get_session_context(session_id, "sandbox")
@@ -718,7 +765,7 @@ def api_session(request: Request, session_id: str):
     user = _sync_db_user(request)
 
     session = get_session(session_id)
-    if not session or session["user_id"] != user["id"]:
+    if not session or str(session.get("user_id") or "") != str(user["id"]):
         raise HTTPException(status_code=404, detail="Session not found")
 
     mode_filter = str(request.query_params.get("mode_key") or session.get("mode_key") or "").strip()

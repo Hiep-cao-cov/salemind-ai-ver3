@@ -1,4 +1,67 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const workspaceLayout = document.getElementById('workspace-layout');
+  const workspaceSidebar = document.getElementById('workspace-session-sidebar');
+  const workspaceSidebarToggle = document.getElementById('workspace-sidebar-toggle');
+  const SIDEBAR_LS_KEY = 'workspaceHistorySidebarExpanded';
+
+  if (workspaceLayout && workspaceSidebar && workspaceSidebarToggle) {
+    const applySidebarCollapsed = (collapsed) => {
+      workspaceLayout.classList.toggle('sidebar-collapsed', collapsed);
+      workspaceSidebar.classList.toggle('is-collapsed', collapsed);
+      workspaceSidebarToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      workspaceSidebarToggle.setAttribute('title', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+      try {
+        localStorage.setItem(SIDEBAR_LS_KEY, collapsed ? 'false' : 'true');
+      } catch (_) {
+        /* ignore */
+      }
+    };
+
+    try {
+      if (localStorage.getItem(SIDEBAR_LS_KEY) === 'false') {
+        applySidebarCollapsed(true);
+      }
+    } catch (_) {
+      /* ignore */
+    }
+
+    workspaceSidebarToggle.addEventListener('click', () => {
+      applySidebarCollapsed(!workspaceSidebar.classList.contains('is-collapsed'));
+    });
+  }
+
+  workspaceLayout?.addEventListener('click', async (e) => {
+    const delBtn = e.target.closest('[data-delete-session]');
+    if (!delBtn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const sid = delBtn.getAttribute('data-delete-session');
+    if (!sid) return;
+    if (!window.confirm('Delete this session and all saved messages? This cannot be undone.')) return;
+    try {
+      const res = await fetch('/api/session/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sid }),
+      });
+      if (!res.ok) {
+        window.alert('Could not delete session.');
+        return;
+      }
+      const rootEl = document.getElementById('workspace-root');
+      const currentSid = rootEl?.dataset.session || '';
+      const mode = rootEl?.dataset.mode || 'sandbox';
+      if (sid === currentSid) {
+        window.location.assign(`/workspace/${encodeURIComponent(mode)}`);
+      } else {
+        delBtn.closest('.workspace-sidebar-row')?.remove();
+      }
+    } catch (err) {
+      console.error(err);
+      window.alert('Could not delete session.');
+    }
+  });
+
   const root = document.getElementById('workspace-root');
   const progressFill = document.getElementById('progress-fill');
   const progressLabel = document.getElementById('progress-label');
@@ -20,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const mode = root.dataset.mode || 'sandbox';
-  const sessionId = root.dataset.session || '';
+  let sessionId = String(root.dataset.session || '').trim();
 
   const getPracticeRole = () => (root.dataset.practiceRole || 'seller').toLowerCase();
 
@@ -69,8 +132,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const runBtn = document.getElementById('run-simulation-btn');
   const simNextBtn = document.getElementById('sim-next-btn');
   const startPracticeBtn = document.getElementById('start-practice-btn');
+  const analyzeBtn = document.getElementById('analyze-btn');
   const mentorToggle = document.getElementById('mentor-toggle');
   const difficultySelect = document.getElementById('difficulty-select');
+  const chipDifficulty = document.getElementById('chip-difficulty');
+  const chipMentor = document.getElementById('chip-mentor');
+  const negotiationWorkspaceBadge = document.getElementById('negotiation-workspace-badge');
+
+  const isMentorEnabled = () => (mentorToggle ? Boolean(mentorToggle.checked) : true);
+  const getDifficulty = () => {
+    const value = String(difficultySelect?.value || 'medium').toLowerCase();
+    return ['simple', 'medium', 'hard'].includes(value) ? value : 'medium';
+  };
 
   let simApiHist = [];
   const newSimState = () => ({
@@ -89,6 +162,20 @@ document.addEventListener('DOMContentLoaded', () => {
   const analyzerMode = document.getElementById('analyzer-mode');
   const scenarioBrief = document.getElementById('scenario-brief');
 
+  const applyReturnedSessionId = (newId) => {
+    const id = String(newId || '').trim();
+    if (!id) return;
+    if (id === sessionId) return;
+    sessionId = id;
+    root.dataset.session = id;
+    const hid = form?.querySelector('input[name="session_id"]');
+    if (hid) hid.value = id;
+    const url = new URL(window.location.href);
+    url.pathname = `/workspace/${encodeURIComponent(mode)}`;
+    url.searchParams.set('session_id', id);
+    window.history.replaceState(null, '', `${url.pathname}?${url.searchParams.toString()}`);
+  };
+
   const scenarioLibraryWrap = document.getElementById('scenario-library-wrap');
   const scenarioFileWrap = document.getElementById('scenario-file-wrap');
 
@@ -104,8 +191,101 @@ document.addEventListener('DOMContentLoaded', () => {
   const chatEmptyState = document.getElementById('chat-empty-state');
 
   const getHasContext = () => root.dataset.hasContext === 'true';
+
+  const syncWorkspaceStepper = () => {
+    const has = getHasContext();
+    document.querySelectorAll('.workspace-stepper [data-ws-step]').forEach((el) => {
+      const step = el.getAttribute('data-ws-step');
+      el.classList.remove('is-active', 'is-complete', 'is-upcoming');
+      if (!has) {
+        if (step === '1') el.classList.add('is-active');
+        else el.classList.add('is-upcoming');
+      } else if (step === '3') {
+        el.classList.add('is-active');
+      } else {
+        el.classList.add('is-complete');
+      }
+    });
+  };
+
+  const updateRunContextChips = () => {
+    if (chipDifficulty) {
+      const d = getDifficulty();
+      const label = d.charAt(0).toUpperCase() + d.slice(1);
+      chipDifficulty.textContent = `Difficulty: ${label}`;
+    }
+    if (chipMentor) {
+      const on = isMentorEnabled();
+      chipMentor.textContent = on ? 'Mentor: on' : 'Mentor: off';
+      chipMentor.classList.toggle('run-chip--off', !on);
+    }
+  };
+
+  const syncNegotiationWorkspaceBadge = () => {
+    if (!negotiationWorkspaceBadge) return;
+    const has = getHasContext();
+    negotiationWorkspaceBadge.textContent = has ? 'Enabled' : 'Locked';
+    negotiationWorkspaceBadge.classList.toggle('ready', has);
+    negotiationWorkspaceBadge.classList.toggle('locked', !has);
+  };
+
+  const syncWorkspaceChrome = () => {
+    syncWorkspaceStepper();
+    updateRunContextChips();
+    syncNegotiationWorkspaceBadge();
+  };
+
   const setHasContext = (value) => {
     root.dataset.hasContext = value ? 'true' : 'false';
+    syncWorkspaceChrome();
+  };
+
+  const setAnalyzeBusy = (busy) => {
+    if (form) {
+      form.classList.toggle('is-analyzing', busy);
+      form.setAttribute('aria-busy', busy ? 'true' : 'false');
+    }
+    if (analyzeBtn) {
+      analyzeBtn.classList.toggle('is-loading', busy);
+      analyzeBtn.setAttribute('aria-busy', busy ? 'true' : 'false');
+      analyzeBtn.disabled = busy;
+    }
+    [sourceType, analyzerMode, difficultySelect].forEach((el) => {
+      if (el) el.disabled = busy;
+    });
+    if (mentorToggle) mentorToggle.disabled = busy;
+    if (scenarioBrief) scenarioBrief.disabled = busy;
+    const fileInput = form?.querySelector('input[type="file"]');
+    if (fileInput) fileInput.disabled = busy;
+    const libSelect = form?.querySelector('select[name="scenario_key"]');
+    if (libSelect) libSelect.disabled = busy;
+  };
+
+  const clearStreamActionLoading = () => {
+    sendBtn?.classList.remove('is-loading');
+    sendBtn?.removeAttribute('aria-busy');
+    startPracticeBtn?.classList.remove('is-loading');
+    startPracticeBtn?.removeAttribute('aria-busy');
+    document.querySelectorAll('[data-action="help"], [data-action="coach"]').forEach((btn) => {
+      btn.classList.remove('is-loading');
+      btn.removeAttribute('aria-busy');
+    });
+  };
+
+  const setStreamActionLoading = (action) => {
+    clearStreamActionLoading();
+    if (action === 'chat' && sendBtn) {
+      sendBtn.classList.add('is-loading');
+      sendBtn.setAttribute('aria-busy', 'true');
+    } else if (action === 'start' && startPracticeBtn) {
+      startPracticeBtn.classList.add('is-loading');
+      startPracticeBtn.setAttribute('aria-busy', 'true');
+    } else if (action === 'help' || action === 'coach') {
+      document.querySelectorAll(`[data-action="${action}"]`).forEach((btn) => {
+        btn.classList.add('is-loading');
+        btn.setAttribute('aria-busy', 'true');
+      });
+    }
   };
 
   const setFinishButtonsDisabled = (disabled) => {
@@ -216,8 +396,29 @@ document.addEventListener('DOMContentLoaded', () => {
       body.innerHTML =
         '<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>';
     } else if (role === 'mentor') {
-      body.classList.add('mentor-body');
-      body.textContent = String(text || '').trim();
+      const details = document.createElement('details');
+      details.className = 'mentor-bubble-details';
+      details.open = true;
+      const sum = document.createElement('summary');
+      sum.className = 'mentor-bubble-summary';
+      sum.textContent = 'Full coaching text';
+      const region = document.createElement('div');
+      region.className = 'bubble-text mentor-body mentor-scroll-region';
+      region.textContent = String(text || '').trim();
+      details.appendChild(sum);
+      details.appendChild(region);
+      bubble.appendChild(meta);
+      bubble.appendChild(details);
+      row.appendChild(bubble);
+      if (auditSummary) {
+        const audit = document.createElement('div');
+        audit.className = 'audit-chip';
+        audit.textContent = auditSummary;
+        bubble.appendChild(audit);
+      }
+      chatPanel.appendChild(row);
+      chatPanel.scrollTop = chatPanel.scrollHeight;
+      return { row, bubble, body: region };
     } else {
       body.textContent = text;
     }
@@ -267,6 +468,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     setHasContext(true);
+    summaryPanel?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   };
 
   const refreshScenarioUI = () => {
@@ -325,11 +527,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const analyzeScenario = async () => {
     if (!form || isProcessing) return;
 
+    // Snapshot before setAnalyzeBusy: disabled fields are omitted from FormData (422 if source_type / analyzer_mode missing).
+    const formData = new FormData(form);
+
     isProcessing = true;
     lockWorkflow();
+    setAnalyzeBusy(true);
     setProgress(20, 'Analyzing...');
-
-    const formData = new FormData(form);
     const abortCtrl = new AbortController();
     const abortTimer = window.setTimeout(() => abortCtrl.abort(), 180000);
 
@@ -348,6 +552,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       renderSummary(data.context);
+      applyReturnedSessionId(data.session_id);
       simApiHist = [];
       simState = newSimState();
       simInProgress = false;
@@ -362,6 +567,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } finally {
       window.clearTimeout(abortTimer);
       isProcessing = false;
+      setAnalyzeBusy(false);
       unlockWorkflow();
     }
   };
@@ -386,6 +592,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     isProcessing = true;
+    setStreamActionLoading(action);
 
     let lastUserBubble = null;
     if (message) {
@@ -496,6 +703,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setProgress(0, 'Error');
     } finally {
       isProcessing = false;
+      clearStreamActionLoading();
       if (mode === 'real_case') refreshPracticeStartButton();
     }
   };
@@ -503,13 +711,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const analyzeScenarioFromComposer = async (message) => {
     if (!form || isProcessing) return;
 
-    isProcessing = true;
-    lockWorkflow();
-    setProgress(20, 'Analyzing pasted case...');
-
     const formData = new FormData(form);
     formData.set('source_type', 'paste');
     formData.set('content', message);
+
+    isProcessing = true;
+    lockWorkflow();
+    setAnalyzeBusy(true);
+    setProgress(20, 'Analyzing pasted case...');
 
     const abortCtrl = new AbortController();
     const abortTimer = window.setTimeout(() => abortCtrl.abort(), 180000);
@@ -529,6 +738,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       renderSummary(data.context);
+      applyReturnedSessionId(data.session_id);
       simApiHist = [];
       simState = newSimState();
       simInProgress = false;
@@ -541,17 +751,13 @@ document.addEventListener('DOMContentLoaded', () => {
     } finally {
       window.clearTimeout(abortTimer);
       isProcessing = false;
+      setAnalyzeBusy(false);
       unlockWorkflow();
     }
   };
 
   // Keep in sync with data/config.txt [demo_simulate] turns_default (server default for /simulate-step).
   const DEMO_TURNS = 18;
-  const isMentorEnabled = () => (mentorToggle ? Boolean(mentorToggle.checked) : true);
-  const getDifficulty = () => {
-    const value = String(difficultySelect?.value || 'medium').toLowerCase();
-    return ['simple', 'medium', 'hard'].includes(value) ? value : 'medium';
-  };
   const clearMentorMessagesInChat = () => {
     if (!chatPanel) return;
     chatPanel.querySelectorAll('.message-row.mentor').forEach((node) => node.remove());
@@ -594,6 +800,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const startDemoSimulation = async () => {
     if (isProcessing || mode !== 'sandbox') return;
     isProcessing = true;
+    if (runBtn) {
+      runBtn.classList.add('is-loading');
+      runBtn.setAttribute('aria-busy', 'true');
+    }
     refreshSandboxSimButtons();
     setProgress(22, 'Generating DEMO conversation (Demo_AI_negotiation, turn 1/16–20)...');
 
@@ -639,6 +849,10 @@ document.addEventListener('DOMContentLoaded', () => {
       setProgress(0, 'Error');
     } finally {
       isProcessing = false;
+      if (runBtn) {
+        runBtn.classList.remove('is-loading');
+        runBtn.removeAttribute('aria-busy');
+      }
       refreshSandboxSimButtons();
     }
   };
@@ -646,6 +860,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const nextDemoSimulationTurn = async () => {
     if (isProcessing || mode !== 'sandbox' || !simInProgress) return;
     isProcessing = true;
+    if (simNextBtn) {
+      simNextBtn.classList.add('is-loading');
+      simNextBtn.setAttribute('aria-busy', 'true');
+    }
     refreshSandboxSimButtons();
     setProgress(35, 'Generating next turn...');
 
@@ -677,6 +895,10 @@ document.addEventListener('DOMContentLoaded', () => {
       setProgress(0, 'Error');
     } finally {
       isProcessing = false;
+      if (simNextBtn) {
+        simNextBtn.classList.remove('is-loading');
+        simNextBtn.removeAttribute('aria-busy');
+      }
       refreshSandboxSimButtons();
     }
   };
@@ -815,7 +1037,12 @@ document.addEventListener('DOMContentLoaded', () => {
     await nextDemoSimulationTurn();
   });
 
+  difficultySelect?.addEventListener('change', () => {
+    updateRunContextChips();
+  });
+
   mentorToggle?.addEventListener('change', () => {
+    updateRunContextChips();
     if (!isMentorEnabled()) {
       // Keep conversation turns intact; only hide mentor commentary when disabled.
       clearMentorMessagesInChat();
@@ -842,6 +1069,8 @@ document.addEventListener('DOMContentLoaded', () => {
       streamChat('chat');
     }
   });
+
+  syncWorkspaceChrome();
 
   setProgress(0, 'Ready');
 });
