@@ -989,3 +989,181 @@
 2026-04-19 09:27:17,961 | INFO | core.model_client | Calling model provider=openai (chat turns=2)
 2026-04-19 09:27:19,467 | INFO | core.model_client | Calling model provider=openai
 2026-04-19 09:27:21,652 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:46:03,456 | INFO | app | Application started and database initialized.
+2026-04-19 09:46:03,456 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 09:46:15,034 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:46:28,026 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:46:39,099 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:46:51,893 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:47:01,989 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:47:09,275 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:47:17,414 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:47:20,442 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:47:22,754 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:47:24,566 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:47:26,488 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:47:28,563 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:47:30,745 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:47:32,822 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:47:35,378 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:47:37,579 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:47:55,956 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:48:04,162 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:48:14,752 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:48:17,422 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:48:59,633 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:52:48,541 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:53:04,046 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:53:27,303 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:53:35,029 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:56:29,950 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 09:56:38,228 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:07:43,788 | INFO | app | Application started and database initialized.
+2026-04-19 10:07:43,789 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:07:57,198 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:08:10,039 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:08:23,925 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:15:23,828 | INFO | app | Application started and database initialized.
+2026-04-19 10:15:23,828 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:16:12,174 | INFO | app | Application started and database initialized.
+2026-04-19 10:16:12,174 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:16:14,512 | INFO | app | Application started and database initialized.
+2026-04-19 10:16:14,512 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:16:15,979 | INFO | app | Application started and database initialized.
+2026-04-19 10:16:15,979 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:16:17,407 | INFO | app | Application started and database initialized.
+2026-04-19 10:16:17,407 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:16:18,820 | INFO | app | Application started and database initialized.
+2026-04-19 10:16:18,820 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:16:20,197 | INFO | app | Application started and database initialized.
+2026-04-19 10:16:20,197 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:16:56,838 | INFO | app | Application started and database initialized.
+2026-04-19 10:16:56,838 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:17:09,200 | INFO | app | Application started and database initialized.
+2026-04-19 10:17:09,200 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:17:10,620 | INFO | app | Application started and database initialized.
+2026-04-19 10:17:10,621 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:17:12,040 | INFO | app | Application started and database initialized.
+2026-04-19 10:17:12,040 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:17:18,860 | INFO | app | Application started and database initialized.
+2026-04-19 10:17:18,860 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:17:20,494 | INFO | app | Application started and database initialized.
+2026-04-19 10:17:20,494 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:17:21,919 | INFO | app | Application started and database initialized.
+2026-04-19 10:17:21,920 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:17:23,348 | INFO | app | Application started and database initialized.
+2026-04-19 10:17:23,348 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:17:24,783 | INFO | app | Application started and database initialized.
+2026-04-19 10:17:24,783 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:17:34,958 | INFO | app | Application started and database initialized.
+2026-04-19 10:17:34,958 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:17:36,541 | INFO | app | Application started and database initialized.
+2026-04-19 10:17:36,541 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:17:38,276 | INFO | app | Application started and database initialized.
+2026-04-19 10:17:38,276 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:17:39,965 | INFO | app | Application started and database initialized.
+2026-04-19 10:17:39,965 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:17:41,359 | INFO | app | Application started and database initialized.
+2026-04-19 10:17:41,360 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:17:43,013 | INFO | app | Application started and database initialized.
+2026-04-19 10:17:43,013 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:17:45,648 | INFO | app | Application started and database initialized.
+2026-04-19 10:17:45,648 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:17:53,903 | INFO | app | Application started and database initialized.
+2026-04-19 10:17:53,903 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:18:00,991 | INFO | app | Application started and database initialized.
+2026-04-19 10:18:00,991 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:18:10,181 | INFO | app | Application started and database initialized.
+2026-04-19 10:18:10,181 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:18:12,950 | INFO | app | Application started and database initialized.
+2026-04-19 10:18:12,950 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:18:14,369 | INFO | app | Application started and database initialized.
+2026-04-19 10:18:14,369 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:18:15,952 | INFO | app | Application started and database initialized.
+2026-04-19 10:18:15,952 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:21:50,618 | INFO | app | Application started and database initialized.
+2026-04-19 10:21:50,618 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:21:52,037 | INFO | app | Application started and database initialized.
+2026-04-19 10:21:52,037 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:21:59,005 | INFO | app | Application started and database initialized.
+2026-04-19 10:21:59,005 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:22:03,888 | INFO | app | Application started and database initialized.
+2026-04-19 10:22:03,888 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:22:05,378 | INFO | app | Application started and database initialized.
+2026-04-19 10:22:05,378 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:40:07,561 | INFO | app | Application started and database initialized.
+2026-04-19 10:40:07,561 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:40:24,078 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:40:39,384 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:40:53,691 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:41:06,302 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:45:10,489 | INFO | app | Application started and database initialized.
+2026-04-19 10:45:10,489 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:45:11,937 | INFO | app | Application started and database initialized.
+2026-04-19 10:45:11,937 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:48:10,749 | INFO | app | Application started and database initialized.
+2026-04-19 10:48:10,749 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:48:12,638 | INFO | app | Application started and database initialized.
+2026-04-19 10:48:12,638 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:48:14,070 | INFO | app | Application started and database initialized.
+2026-04-19 10:48:14,070 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:49:54,681 | INFO | app | Application started and database initialized.
+2026-04-19 10:49:54,681 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 10:50:07,987 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:50:14,133 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:50:30,777 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:51:46,246 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:51:53,246 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:52:01,740 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:52:24,507 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:52:37,299 | INFO | core.model_client | Calling model provider=openai (chat turns=2)
+2026-04-19 10:52:38,438 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:52:40,835 | INFO | core.model_client | Calling model provider=openai (chat turns=2)
+2026-04-19 10:52:41,854 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:52:44,449 | INFO | core.model_client | Calling model provider=openai (chat turns=2)
+2026-04-19 10:52:45,785 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:52:48,190 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:54:26,980 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:54:28,850 | INFO | core.model_client | Calling model provider=openai (chat turns=2)
+2026-04-19 10:54:30,250 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:54:31,717 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 10:58:03,535 | INFO | app | Application started and database initialized.
+2026-04-19 10:58:03,535 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 11:02:06,847 | INFO | app | Application started and database initialized.
+2026-04-19 11:02:06,847 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 11:02:36,687 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:02:42,541 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:02:50,146 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:03:05,466 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:03:11,760 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:03:30,497 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:04:08,487 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:04:13,727 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:04:18,963 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:04:23,822 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:06:52,016 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:07:06,098 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:13:36,750 | INFO | app | Application started and database initialized.
+2026-04-19 11:13:36,750 | INFO | app | Model env: OPENAI_API_KEY=set | MODEL_PROVIDER=(auto) | AWS keys for Bedrock=missing
+2026-04-19 11:13:53,377 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:14:10,258 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:14:19,206 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:14:25,388 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:14:32,894 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:15:17,280 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:15:32,838 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:15:36,875 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:15:41,096 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:15:46,302 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:15:48,790 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:15:51,274 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:15:54,092 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:15:56,415 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:15:58,534 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:16:01,438 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:16:04,079 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:16:06,388 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:16:08,724 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:16:10,909 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:16:12,876 | INFO | core.model_client | Calling model provider=openai
+2026-04-19 11:16:14,970 | INFO | core.model_client | Calling model provider=openai

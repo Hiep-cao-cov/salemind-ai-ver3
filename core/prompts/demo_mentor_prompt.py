@@ -1,24 +1,34 @@
 """
 Mentor analysis for each AI-vs-AI line in Sandbox DEMO (step-by-step).
 
-Tune the summary length here (one place):
+Rules text: ``data/prompts/demo_mentor_rule.txt``. Tunables: ``data/config.txt`` ([demo_mentor]). Independent of Practice mentor.
 """
 
 import re
 
-# ---------------------------------------------------------------------------
-# USER-TUNABLE: target length for mentor text (hard stop after this many words)
-# ---------------------------------------------------------------------------
+from utils.ai_output_config import get_int
+
+
+def get_demo_mentor_max_words() -> int:
+    return get_int("demo_mentor", "max_words", 60)
+
+
+def get_demo_mentor_scenario_chars() -> int:
+    return get_int("demo_mentor", "scenario_context_chars", 4000)
+
+
+# Back-compat constant (static); runtime limits use getters above.
 MENTOR_MAX_WORDS = 60
 
-_MAX_SCENARIO_CHARS = 4000
+
+_MAX_SCENARIO_CHARS = 4000  # legacy name; use get_demo_mentor_scenario_chars() in builders
 
 
 def normalize_mentor_text(raw: str, *, max_words: int | None = None) -> str:
     """
-    Strip noise, collapse whitespace, cap at max_words (default: MENTOR_MAX_WORDS).
+    Strip noise, collapse whitespace, cap at max_words (default from config).
     """
-    limit = MENTOR_MAX_WORDS if max_words is None else max_words
+    limit = get_demo_mentor_max_words() if max_words is None else max_words
     if not raw or not str(raw).strip():
         return ""
     text = str(raw).strip()
@@ -48,14 +58,15 @@ def build_demo_turn_mentor_prompt(
     max_words: int | None = None,
 ) -> str:
     """
-    max_words defaults to MENTOR_MAX_WORDS; pass explicitly to keep prompt in sync.
+    max_words defaults from config; pass explicitly to override.
     """
-    n = MENTOR_MAX_WORDS if max_words is None else max_words
+    n = get_demo_mentor_max_words() if max_words is None else max_words
+    cap = get_demo_mentor_scenario_chars()
     content = (utterance or "").strip()
     if not content:
         content = "(No text in this turn.)"
 
-    scenario = (scenario_context or "").strip()[:_MAX_SCENARIO_CHARS]
+    scenario = (scenario_context or "").strip()[:cap]
     if not scenario:
         scenario = "(No scenario summary.)"
     recent = (recent_dialogue or "").strip() or "(No prior lines in this thread.)"
@@ -81,10 +92,9 @@ Mentor rules:
 {rules_text}
 
 In your paragraph, in plain English:
-- What this line means in plain language (the “real message”).
-- The likely hidden intent behind this line.
-- What tactic or pressure it uses (price, payment, time, competition, risk, relationship, etc.).
-- One practical angle for the seller (value defense, questions to ask, or what not to give away first).
+- What this counterpart line really signals (substance + pressure).
+- Likely tactic (price, payment, time, competition, risk, relationship).
+- One concrete suggestion for the seller (value defense, questions to ask, or concession to avoid).
 
 RULES:
 - Maximum {n} words. No bullet lists, no markdown headings, no numbering.

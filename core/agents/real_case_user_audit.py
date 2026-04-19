@@ -12,6 +12,7 @@ from typing import Any, Dict
 
 from core.model_client import get_model_client
 from core.prompt_loader import get_strategy_policy_text
+from utils.ai_output_config import get_float, get_int
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -97,7 +98,11 @@ def audit_real_case_user_message(user_message: str, scenario_context: str) -> Di
     )
 
     try:
-        raw = get_model_client().complete(prompt, temperature=0.15, max_tokens=400)
+        raw = get_model_client().complete(
+            prompt,
+            temperature=get_float("real_case_user_audit", "temperature", 0.15),
+            max_tokens=get_int("real_case_user_audit", "max_tokens", 400),
+        )
         parsed = _extract_json_object(raw)
         if isinstance(parsed, dict):
             summary = str(parsed.get("summary") or "").strip()

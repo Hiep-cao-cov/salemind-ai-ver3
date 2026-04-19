@@ -10,6 +10,7 @@ from core.prompt_loader import (
     get_deal_rule_text,
     get_sell_skill_text,
 )
+from utils.ai_output_config import clamp_demo_turns, get_int
 
 
 @lru_cache(maxsize=1)
@@ -35,8 +36,8 @@ def prepare_scenario(
 
 
 def simulate(analysis: Dict[str, Any], turns: int = 18) -> Dict[str, Any]:
-    """Run full DEMO simulation using two-agent state internals."""
-    turns_total = max(16, min(20, int(turns)))
+    """Run full DEMO simulation using Demo_AI_negotiation scripted transcript (replay per step)."""
+    turns_total = clamp_demo_turns(int(turns))
     state = init_simulation_state(analysis)
     transcript: List[Dict[str, str]] = []
     final_audit: Optional[Dict[str, Any]] = None
@@ -83,6 +84,8 @@ def init_simulation_state(analysis: Dict[str, Any]) -> Dict[str, Any]:
         "buyer_private_context": _build_buyer_private_context(analysis),
         "seller_private_context": _build_seller_private_context(analysis),
         "termination": {"status": "ongoing", "reason": "", "matched_rule": ""},
+        "demo_script": [],
+        "demo_script_cursor": 0,
     }
 
 
@@ -167,6 +170,8 @@ def _coerce_simulation_state(
             "buyer_private_context": dict(simulation_state.get("buyer_private_context") or {}),
             "seller_private_context": dict(simulation_state.get("seller_private_context") or {}),
             "termination": dict(simulation_state.get("termination") or {}),
+            "demo_script": list(simulation_state.get("demo_script") or []),
+            "demo_script_cursor": int(simulation_state.get("demo_script_cursor") or 0),
         }
         if state["next_speaker"] not in ("buyer", "seller"):
             state["next_speaker"] = "buyer"
@@ -380,10 +385,11 @@ def _speaker_label_demo(role: str) -> str:
     return role or "Speaker"
 
 
-def _mentor_prior_dialogue(transcript: List[Dict[str, str]], *, max_lines: int = 8) -> str:
+def _mentor_prior_dialogue(transcript: List[Dict[str, str]], *, max_lines: Optional[int] = None) -> str:
+    lim = get_int("demo_mentor", "prior_dialogue_max_lines", 8) if max_lines is None else max_lines
     if len(transcript) <= 1:
         return ""
-    prior = transcript[:-1][-max_lines:]
+    prior = transcript[:-1][-lim:]
     lines: List[str] = []
     for item in prior:
         r = item.get("speaker", "")
@@ -540,7 +546,7 @@ def simulate_step(
     mentor: bool = True,
     difficulty: str = "medium",
 ) -> Dict[str, Any]:
-    """Run one DEMO turn using two-agent state; keep legacy api_hist compatibility."""
+    """Run one DEMO turn: reveal the next line from the Demo_AI_negotiation script (legacy api_hist supported)."""
     api_hist = api_hist or []
     state = _coerce_simulation_state(analysis, simulation_state, api_hist)
     diff = str(difficulty or "medium").strip().lower()
@@ -548,7 +554,7 @@ def simulate_step(
         diff = "medium"
     state.setdefault("session_meta", {})["difficulty"] = diff
     public_transcript = list(state.get("public_transcript") or [])
-    turns_total = max(16, min(20, int(turns)))
+    turns_total = clamp_demo_turns(int(turns))
     turns_done = len(public_transcript)
     termination = dict(state.get("termination") or {"status": "ongoing", "reason": "", "matched_rule": ""})
 
@@ -564,6 +570,7 @@ def simulate_step(
             "turns_total": turns_total,
             "turns_done": turns_done,
             "termination": termination,
+            "error": None,
         }
 
     if turns_done >= turns_total:
@@ -580,33 +587,93 @@ def simulate_step(
             "turns_total": turns_total,
             "turns_done": turns_done,
             "termination": termination,
+            "error": None,
         }
 
-    next_speaker = str(state.get("next_speaker") or "buyer")
-    if next_speaker == "seller":
-        item = simulate_seller_step(analysis, state)
-    else:
-        item = simulate_buyer_step(analysis, state)
+    demo_script = list(state.get("demo_script") or [])
+    demo_cursor = int(state.get("demo_script_cursor") or 0)
+
+    if len(demo_script) == 0:
+        if len(public_transcript) > 0:
+            state["public_transcript"] = []
+            public_transcript = []
+        demo_script = get_model_client().generate_demo_ai_negotiation_script(
+            analysis, turn_count=turns_total, difficulty=diff
+        )
+        state["demo_script"] = demo_script
+        state["demo_script_cursor"] = 0
+        demo_cursor = 0
+
+    if demo_cursor >= len(demo_script):
+        termination = dict(state.get("termination") or {"status": "ongoing", "reason": "", "matched_rule": ""})
+        session_meta = state.setdefault("session_meta", {})
+        session_meta["status"] = termination.get("status", "ongoing")
+        return {
+            "ok": True,
+            "done": termination.get("status") not in ("", "ongoing"),
+            "simulation_state": state,
+            "api_hist": transcript_to_legacy_api_hist(list(state.get("public_transcript") or [])),
+            "item": None,
+            "audit": None,
+            "mentor_insight": None,
+            "turns_total": turns_total,
+            "turns_done": len(state.get("public_transcript") or []),
+            "termination": termination,
+            "error": None,
+        }
+
+    row = demo_script[demo_cursor]
+    speaker = str(row.get("speaker") or "").strip().lower()
+    if speaker not in ("buyer", "seller"):
+        speaker = "buyer" if demo_cursor % 2 == 0 else "seller"
+    text = str(row.get("text") or "").strip() or "Let's continue aligning on commercials and next steps."
+    role = "buyer_ai" if speaker == "buyer" else "sales_ai"
+    item = {"role": role, "text": text}
+    state["public_transcript"].append({"speaker": speaker, "text": text})
+    state["demo_script_cursor"] = demo_cursor + 1
+    state["next_speaker"] = "seller" if speaker == "buyer" else "buyer"
+
+    session_meta = state.setdefault("session_meta", {})
+    session_meta["turn_number"] = int(session_meta.get("turn_number") or 0) + 1
+    session_meta["current_agent"] = speaker
+    session_meta["max_turns"] = turns_total
+
+    history = state.setdefault("history", [])
+    history.append(
+        {
+            "turn": int(session_meta.get("turn_number") or 0),
+            "agent": "demo_ai_negotiation",
+            "draft": text,
+            "verdict": "SCRIPT",
+            "final_output": text,
+            "mentor_note": "",
+            "violations": [],
+        }
+    )
+    for p in _extract_agreed_points(text):
+        if p not in state["agreed_points"]:
+            state["agreed_points"].append(p)
 
     public_transcript = list(state.get("public_transcript") or [])
     turns_done = len(public_transcript)
-    session_meta = state.setdefault("session_meta", {})
-    session_meta["max_turns"] = turns_total
-    # Phase 3 loop control: check after each Buyer turn.
-    if item.get("role") == "buyer_ai":
-        termination = _check_stopping_condition(state)
+    if turns_done >= turns_total:
+        termination = {
+            "status": "AGREEMENT",
+            "reason": "demo_ai_negotiation script completed",
+            "matched_rule": "",
+        }
     else:
         termination = {"status": "ongoing", "reason": "", "matched_rule": ""}
-        # Safety fallback from legacy rule file.
-        if turns_done >= turns_total:
-            termination = _evaluate_termination(public_transcript, turns_done, turns_total)
     state["termination"] = termination
     session_meta["status"] = termination.get("status", "ongoing")
     done = termination.get("status") != "ongoing"
 
     audit = None
     if done:
-        ui_transcript = [{"role": ("buyer_ai" if t.get("speaker") == "buyer" else "sales_ai"), "text": t.get("text", "")} for t in public_transcript]
+        ui_transcript = [
+            {"role": ("buyer_ai" if t.get("speaker") == "buyer" else "sales_ai"), "text": t.get("text", "")}
+            for t in public_transcript
+        ]
         audit = _audit_transcript(ui_transcript)
         if isinstance(audit, dict):
             forced = _termination_summary(termination)
@@ -616,7 +683,6 @@ def simulate_step(
     mentor_insight: Optional[str] = None
     if mentor:
         mentor_insight = _mentor_insight_for_turn(analysis, item, public_transcript)
-        history = state.get("history") or []
         if history:
             history[-1]["mentor_note"] = mentor_insight
 
@@ -631,6 +697,7 @@ def simulate_step(
         "turns_total": turns_total,
         "turns_done": turns_done,
         "termination": termination,
+        "error": None,
     }
 
 

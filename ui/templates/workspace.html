@@ -1,17 +1,23 @@
 {% extends 'base.html' %}
 {% block extra_head %}
-<link rel="stylesheet" href="/static/css/workspace-v2.css?v=practice-role-grid-1" />
+<link rel="stylesheet" href="/static/css/workspace-v2.css?v=demo-composer-toolbar-1" />
 {% endblock %}
 {% block content %}
 <div class="workspace-v2">
 <section class="workspace-mode-strip">
   <div class="mode-switch panel">
     <div class="mode-switch-label">Select Mode</div>
-    <div class="mode-switch-row">
-      <a class="pill-btn mode-btn {% if mode == 'sandbox' %}active{% endif %}" href="/workspace/sandbox">
+    <div class="mode-switch-row" role="tablist" aria-label="Workspace mode">
+      <a class="pill-btn mode-btn {% if mode == 'sandbox' %}active{% endif %}"
+         href="/workspace/sandbox"
+         role="tab"
+         aria-selected="{{ 'true' if mode == 'sandbox' else 'false' }}">
         DEMO
       </a>
-      <a class="pill-btn mode-btn {% if mode == 'real_case' %}active{% endif %}" href="/workspace/real_case">
+      <a class="pill-btn mode-btn {% if mode == 'real_case' %}active{% endif %}"
+         href="/workspace/real_case"
+         role="tab"
+         aria-selected="{{ 'true' if mode == 'real_case' else 'false' }}">
         Practice
       </a>
     </div>
@@ -40,20 +46,17 @@
         </div>
         <h2>{{ mode_label }}</h2>
 
-        <p class="muted-copy">
+        <div class="muted-copy workspace-mode-blurb">
           {% if mode == 'sandbox' %}
-          <h4>Create or load a scenario → analyze → chat with AI Seller or run DEMO simulation.</h4>
+          <p>Create or load a scenario → analyze → chat with AI Seller or run DEMO simulation.</p>
           {% elif mode == 'real_case' %}
-          <h4>Paste/upload a your real case or select from library scenario → analyze → continue negotiation.</h4>
+          <p>Paste or upload your real case, or pick a library scenario → analyze → continue the negotiation.</p>
           {% endif %}
-        </p>
+        </div>
       </div>
 
       <div class="action-cluster">
         <button class="pill-btn" data-action="help">Help</button>
-        {% if mode == 'sandbox' %}
-        <button class="pill-btn" data-action="auto">Auto</button>
-        {% endif %}
         <button class="pill-btn" data-action="coach">Coach</button>
       </div>
 
@@ -209,10 +212,6 @@
                   class="primary-btn" disabled>
             Start DEMO (step-by-step)
           </button>
-          <button type="button" id="sim-next-btn"
-                  class="secondary-btn hidden" disabled>
-            Next turn
-          </button>
           {% endif %}
         </div>
 
@@ -284,7 +283,11 @@
           <p>
             1. Select scenario<br>
             2. Click Analyze<br>
+            {% if mode == 'sandbox' %}
+            3. Start DEMO (step-by-step), then use Next turn
+            {% else %}
             3. Start negotiation
+            {% endif %}
           </p>
         </div>
         {% endif %}
@@ -306,16 +309,18 @@
 
       </div>
 
-      <!-- COMPOSER -->
-      <div class="composer-wrap">
+      <!-- COMPOSER: full composer in Practice; DEMO uses toolbar only (no free-text chat). -->
+      <div class="composer-wrap{% if mode == 'sandbox' %} composer-wrap--demo-only{% endif %}">
 
+        {% if mode != 'sandbox' %}
         <textarea id="message-input"
                   class="composer"
                   rows="3"
                   {% if not has_context %}disabled{% endif %}
                   placeholder="Type your message..."></textarea>
+        {% endif %}
 
-        <div class="composer-footer">
+        <div class="composer-footer{% if mode == 'sandbox' %} composer-footer--demo-only{% endif %}">
           <div class="small-text">{{ current_user.display_name }}</div>
           <div class="composer-actions">
             {% if mode in ['sandbox', 'real_case'] %}
@@ -326,11 +331,19 @@
               Finish
             </button>
             {% endif %}
+            {% if mode == 'sandbox' %}
+            <button type="button" id="sim-next-btn"
+                    class="secondary-btn hidden" disabled>
+              Next turn
+            </button>
+            {% endif %}
+            {% if mode != 'sandbox' %}
             <button id="send-btn"
                     class="primary-btn"
                     {% if not has_context %}disabled{% endif %}>
               Send
             </button>
+            {% endif %}
           </div>
         </div>
 

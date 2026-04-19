@@ -1,0 +1,86 @@
+# AI output controls — single place to tune lengths, caps, and sampling.
+# INI format: [section] then key = value (# comments allowed on own lines)
+# Restart the app after edits (values are cached on first read).
+# Keep ui/static/js/app.js DEMO_TURNS aligned with [demo_simulate] turns_default when you change defaults.
+
+[demo_simulate]
+# Sandbox DEMO: total scripted lines (clamped for each request)
+turns_min = 12
+turns_max = 16
+turns_default = 14
+
+[demo_ai_negotiation]
+# One-shot Demo_AI_negotiation JSON transcript
+skill_excerpt_chars = 3200
+llm_temperature = 0.5
+llm_max_tokens_base = 800
+llm_max_tokens_per_turn = 260
+llm_max_tokens_cap = 12000
+# --- Buyer AI (customer): each JSON turn with "speaker": "buyer" ---
+buyer_turn_text_min_sentences = 3
+buyer_turn_text_max_sentences = 4
+buyer_turn_text_min_words = 0
+buyer_turn_text_max_words = 0
+# Hard cap after generation (0 = off). Truncates by whitespace-separated tokens.
+buyer_hard_max_words = 0
+# --- Seller AI (Covestro): each JSON turn with "speaker": "seller" ---
+seller_turn_text_min_sentences = 3
+seller_turn_text_max_sentences = 4
+seller_turn_text_min_words = 0
+seller_turn_text_max_words = 0
+seller_hard_max_words = 0
+
+[demo_mentor]
+# Sandbox DEMO mentor: one short paragraph
+max_words = 60
+scenario_context_chars = 4000
+prior_dialogue_max_lines = 8
+llm_temperature = 0.28
+llm_max_tokens_min = 120
+llm_max_tokens_cap = 400
+llm_max_tokens_word_multiplier = 2.2
+
+[real_case_mentor]
+# Practice mentor: three English sections, total word cap
+max_words_total = 200
+scenario_context_chars = 4000
+prior_dialogue_max_lines = 8
+llm_temperature = 0.28
+llm_max_tokens_min = 320
+llm_max_tokens_cap = 900
+llm_max_tokens_word_multiplier = 2.8
+
+[seller_agent]
+# Per-line chat (tests / non-DEMO paths): Covestro seller
+chat_temperature = 0.4
+chat_max_tokens = 520
+
+[buyer_agent]
+# Per-line chat: buyer
+chat_temperature = 0.45
+chat_max_tokens = 520
+
+[coaching_evaluator]
+# PASS/FAIL review for buyer or seller drafts
+temperature = 0.2
+max_tokens = 220
+
+[scenario_analyze]
+# analyze_scenario() JSON extraction from raw scenario text
+temperature = 0.2
+max_tokens = 900
+
+[scenario_create]
+# create_scenario() narrative generation
+temperature = 0.5
+max_tokens = 700
+
+[scenario_cloud_analyzer]
+# analyze_with_cloud_model path in scenario_analyzer_v2
+temperature = 0.2
+max_tokens = 1400
+
+[real_case_user_audit]
+# User-turn strategy audit (real_case)
+temperature = 0.15
+max_tokens = 400

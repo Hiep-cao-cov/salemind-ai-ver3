@@ -1,14 +1,23 @@
 """
 Mentor commentary for Practice (real_case) mode only.
 
-DEMO (sandbox) continues to use ``demo_mentor_prompt.py`` — keep these modules separate.
+Uses ``real_case_mentor_rule.txt`` and ``[real_case_mentor]`` in config—no coupling to DEMO mentor assets.
 """
 
 import re
 
-_MAX_SCENARIO_CHARS = 4000
+from utils.ai_output_config import get_int
 
-# Practice mentor: three labeled sections (English headers) + word targets; total cap after normalize.
+
+def get_real_case_mentor_max_words() -> int:
+    return get_int("real_case_mentor", "max_words_total", 200)
+
+
+def get_real_case_mentor_scenario_chars() -> int:
+    return get_int("real_case_mentor", "scenario_context_chars", 4000)
+
+
+# Back-compat (static); runtime uses getters.
 REAL_CASE_MENTOR_MAX_WORDS = 200
 
 
@@ -17,7 +26,7 @@ def normalize_real_case_mentor_text(raw: str, *, max_words: int | None = None) -
     Clean model output while keeping paragraph breaks (section 1 / 2 / 3).
     Hard-cap total words across the whole message.
     """
-    limit = REAL_CASE_MENTOR_MAX_WORDS if max_words is None else max_words
+    limit = get_real_case_mentor_max_words() if max_words is None else max_words
     text = (raw or "").strip()
     if not text:
         return ""
@@ -56,7 +65,7 @@ def build_real_case_mentor_prompt(
     Frame for Mentor after the AI counterpart speaks in Practice mode.
     The learner plays ``practice_role`` (seller or buyer); the quoted turn is the AI line.
     """
-    _ = max_words  # optional override reserved for callers; cap is REAL_CASE_MENTOR_MAX_WORDS in prompt
+    _ = max_words  # optional override reserved for callers; cap from config in prompt
     learner_side = "Covestro sales (seller)" if practice_role == "seller" else "customer (buyer)"
     counterpart_side = "AI buyer" if practice_role == "seller" else "AI seller"
 
@@ -64,7 +73,7 @@ def build_real_case_mentor_prompt(
     if not content:
         content = "(No text in this turn.)"
 
-    scenario = (scenario_context or "").strip()[:_MAX_SCENARIO_CHARS]
+    scenario = (scenario_context or "").strip()[: get_real_case_mentor_scenario_chars()]
     if not scenario:
         scenario = "(No scenario summary.)"
     recent = (recent_dialogue or "").strip() or "(No prior lines in this thread.)"
@@ -86,7 +95,7 @@ Scenario / case facts (do not contradict):
 Prior dialogue (thread context):
 {recent}
 
-Mentor rules (Covestro coaching lens — substance; do not contradict the OUTPUT FORMAT below):
+Mentor rules (substance; do not contradict the OUTPUT FORMAT below):
 {rules_text}
 
 TASK — OUTPUT FORMAT (Practice / real_case ONLY):
@@ -109,7 +118,7 @@ GLOBAL RULES:
 - Coach the **human learner** only — do not write as if coaching the AI character.
 - Separate the three sections with **one blank line** between sections.
 - Do not use markdown headings (#). Do not repeat the entire quoted turn verbatim.
-- Total output should stay within roughly **{REAL_CASE_MENTOR_MAX_WORDS} words** across all sections (including titles)."""
+- Total output should stay within roughly **{get_real_case_mentor_max_words()} words** across all sections (including titles)."""
 
 
 def fallback_real_case_mentor_note(practice_role: str, speaker_label: str, utterance: str) -> str:

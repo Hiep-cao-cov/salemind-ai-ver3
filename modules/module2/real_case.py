@@ -2,7 +2,7 @@ from typing import Any, Dict, List
 
 from core.model_client import get_model_client
 from modules.module2 import sandbox
-from modules.module2.sandbox import _mentor_prior_dialogue, _speaker_label_demo
+from utils.ai_output_config import get_int
 
 
 def prepare_scenario(
@@ -47,6 +47,30 @@ def _build_real_case_state(analysis: Dict[str, Any], payload: Dict[str, Any], pr
     return state
 
 
+def _mentor_speaker_label(role: str) -> str:
+    """Display label for the AI line in Practice mentor prompts (independent of DEMO helpers)."""
+    r = str(role or "").strip().lower()
+    if r in ("buyer", "buyer_ai"):
+        return "Buyer (AI)"
+    if r in ("seller", "sales_ai"):
+        return "Covestro sales (AI)"
+    return str(role or "").strip() or "Speaker"
+
+
+def _real_case_mentor_prior_dialogue(public_transcript: List[Dict[str, str]]) -> str:
+    """Last N public lines before the current turn; limits from [real_case_mentor] only."""
+    lim = get_int("real_case_mentor", "prior_dialogue_max_lines", 8)
+    if len(public_transcript) <= 1:
+        return ""
+    prior = public_transcript[:-1][-lim:]
+    lines: List[str] = []
+    for item in prior:
+        sp = item.get("speaker", "")
+        label = "Buyer" if sp == "buyer" else "Covestro sales"
+        lines.append(f"{label}: {str(item.get('text', '')).strip()}")
+    return "\n".join(lines)
+
+
 def _mentor_insight_for_practice_turn(
     analysis: Dict[str, Any],
     item: Dict[str, str],
@@ -54,8 +78,8 @@ def _mentor_insight_for_practice_turn(
     practice_role: str,
 ) -> str:
     """Practice-only mentor path: ``real_case_mentor_prompt`` + ``mentor_analyze_real_case_turn`` (not DEMO frame)."""
-    recent = _mentor_prior_dialogue(public_transcript)
-    label = _speaker_label_demo(item.get("role", ""))
+    recent = _real_case_mentor_prior_dialogue(public_transcript)
+    label = _mentor_speaker_label(str(item.get("role", "")))
     utterance = str(item.get("text") or "")
     return get_model_client().mentor_analyze_real_case_turn(
         practice_role=practice_role,
@@ -103,8 +127,7 @@ def run(action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
 
     if action in {"help", "coach"}:
         reply = (
-            "Real Case coaching: use the same DEMO discipline. "
-            "Clarify needs, defend value, and trade concessions only with clear reciprocity."
+            "Practice coaching: clarify needs, defend value, and trade concessions only with clear reciprocity."
         )
         return {"reply": reply, "audit": {}}
 

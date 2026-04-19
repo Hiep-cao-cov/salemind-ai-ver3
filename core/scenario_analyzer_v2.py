@@ -8,6 +8,7 @@ from core.prompt_loader import (
     get_scenario_system_prompt,
     render_prompt_template,
 )
+from utils.ai_output_config import get_float, get_int
 
 
 def _default_result(title: str = "Scenario Analysis") -> Dict[str, Any]:
@@ -62,8 +63,8 @@ def analyze_with_cloud_model(
     client = get_model_client()
     response_text = client.complete(
         prompt=f"{system_prompt}\n\n{user_prompt}",
-        temperature=0.2,
-        max_tokens=1400,
+        temperature=get_float("scenario_cloud_analyzer", "temperature", 0.2),
+        max_tokens=get_int("scenario_cloud_analyzer", "max_tokens", 1400),
     )
 
     try:

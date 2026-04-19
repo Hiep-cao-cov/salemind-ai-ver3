@@ -61,13 +61,18 @@ def get_buy_skill_text() -> str:
     return load_prompt_template("buy_skill.txt")
 
 
-def get_mentor_rule_text() -> str:
-    """Return mentor analysis rules for DEMO mentor agent."""
-    return load_prompt_template("mentor_rule.txt")
+def get_demo_mentor_rule_text() -> str:
+    """Mentor rules for Sandbox DEMO only (``data/prompts/demo_mentor_rule.txt``)."""
+    return load_prompt_template("demo_mentor_rule.txt")
+
+
+def get_real_case_mentor_rule_text() -> str:
+    """Mentor rules for Practice / real_case only (``data/prompts/real_case_mentor_rule.txt``)."""
+    return load_prompt_template("real_case_mentor_rule.txt")
 
 
 def get_strategy_policy_text() -> str:
-    """Company strategy/policy for real_case user-turn audit only (single file, verbatim)."""
+    """Company strategy/policy text (verbatim): real_case user audit + Sandbox Demo_AI_negotiation script."""
     path = LEGACY_PROMPT_DIR / "Startegy_policy.txt"
     if not path.exists():
         return ""

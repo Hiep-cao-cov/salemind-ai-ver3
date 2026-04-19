@@ -17,6 +17,7 @@ from core.scenario_store import get_scenario_by_id, load_scenarios
 from modules.manager.dashboard import load_dashboard_data
 
 
+from utils.ai_output_config import demo_turns_default
 from utils.db import (
     add_message,
     add_messages,
@@ -534,7 +535,7 @@ async def api_sandbox_simulate_step(request: Request):
     payload = await request.json()
 
     session_id = str(payload.get("session_id", "")).strip()
-    turns = int(payload.get("turns", 18))
+    turns = int(payload.get("turns", demo_turns_default()))
 
     if not session_id:
         raise HTTPException(status_code=400, detail="Session ID is required")
@@ -599,7 +600,7 @@ async def api_sandbox_simulate(request: Request):
     payload = await request.json()
 
     session_id = str(payload.get("session_id", "")).strip()
-    turns = int(payload.get("turns", 18))
+    turns = int(payload.get("turns", demo_turns_default()))
     simulation_state_in = payload.get("simulation_state")
     if simulation_state_in is not None and not isinstance(simulation_state_in, dict):
         raise HTTPException(status_code=400, detail="simulation_state must be an object")

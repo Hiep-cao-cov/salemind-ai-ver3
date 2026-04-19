@@ -7,22 +7,29 @@ from typing import Any, Dict, List, Optional
 from utils.logger import get_logger
 
 from core.prompts.demo_mentor_prompt import (
-    MENTOR_MAX_WORDS,
     build_demo_turn_mentor_prompt,
     fallback_demo_mentor_note,
+    get_demo_mentor_max_words,
     normalize_mentor_text,
 )
+from core.prompts.demo_ai_negotiation_prompt import (
+    build_demo_ai_negotiation_prompt,
+    fallback_demo_script_turns,
+)
 from core.prompts.real_case_mentor_prompt import (
-    REAL_CASE_MENTOR_MAX_WORDS,
     build_real_case_mentor_prompt,
     fallback_real_case_mentor_note,
+    get_real_case_mentor_max_words,
     normalize_real_case_mentor_text,
 )
 from core.prompt_loader import (
     get_buy_skill_text,
-    get_mentor_rule_text,
+    get_demo_mentor_rule_text,
+    get_real_case_mentor_rule_text,
     get_sell_skill_text,
+    get_strategy_policy_text,
 )
+from utils.ai_output_config import apply_demo_script_hard_word_cap, clamp_demo_turns, get_float, get_int
 
 logger = get_logger(__name__)
 
@@ -216,7 +223,11 @@ class ModelClient:
                 f"Source name: {source_name or 'Direct Input'}\n\n"
                 f"Scenario content:\n{cleaned[:12000]}"
             )
-            text = self.complete(prompt, temperature=0.2, max_tokens=900)
+            text = self.complete(
+                prompt,
+                temperature=get_float("scenario_analyze", "temperature", 0.2),
+                max_tokens=get_int("scenario_analyze", "max_tokens", 900),
+            )
             parsed = self._extract_json(text)
             if isinstance(parsed, dict):
                 parsed.setdefault("title", source_name or self._derive_title(cleaned))
@@ -250,7 +261,11 @@ class ModelClient:
                 f"Mode: {mode_key}\n"
                 f"Brief from user: {prompt_brief}"
             )
-            generated = self.complete(prompt, temperature=0.5, max_tokens=700)
+            generated = self.complete(
+                prompt,
+                temperature=get_float("scenario_create", "temperature", 0.5),
+                max_tokens=get_int("scenario_create", "max_tokens", 700),
+            )
         if not generated:
             generated = self._fallback_generated_scenario(prompt_brief)
         analysis = self.analyze_scenario(generated, mode_key, "AI Generated Scenario", use_llm=True)
@@ -288,25 +303,33 @@ class ModelClient:
         recent_dialogue: str,
     ) -> str:
         """
-        Second-pass mentor commentary on one AI buyer/sales line in Sandbox DEMO.
+        Second-pass mentor commentary on one AI buyer/sales line in Sandbox DEMO (``demo_mentor_rule.txt`` / [demo_mentor] only).
         """
         ctx = self._analysis_to_simulation_context(analysis)
         try:
-            mentor_rules = get_mentor_rule_text()
+            mentor_rules = get_demo_mentor_rule_text()
         except Exception:
             mentor_rules = ""
+        mw = get_demo_mentor_max_words()
         prompt = build_demo_turn_mentor_prompt(
             speaker_label=speaker_label,
             utterance=utterance,
             scenario_context=ctx,
             recent_dialogue=recent_dialogue,
             mentor_rules=mentor_rules,
-            max_words=MENTOR_MAX_WORDS,
+            max_words=mw,
         )
         if self.provider not in {"openai", "bedrock"}:
             return fallback_demo_mentor_note(speaker_label, utterance)
-        approx_tokens = min(400, max(120, int(MENTOR_MAX_WORDS * 2.2)))
-        text = self.complete(prompt, temperature=0.28, max_tokens=approx_tokens)
+        cap = get_int("demo_mentor", "llm_max_tokens_cap", 400)
+        mn = get_int("demo_mentor", "llm_max_tokens_min", 120)
+        mult = get_float("demo_mentor", "llm_max_tokens_word_multiplier", 2.2)
+        approx_tokens = min(cap, max(mn, int(mw * mult)))
+        text = self.complete(
+            prompt,
+            temperature=get_float("demo_mentor", "llm_temperature", 0.28),
+            max_tokens=approx_tokens,
+        )
         normalized = normalize_mentor_text(text or "")
         return normalized if normalized.strip() else fallback_demo_mentor_note(speaker_label, utterance)
 
@@ -320,16 +343,17 @@ class ModelClient:
         recent_dialogue: str,
     ) -> str:
         """
-        Mentor commentary for Practice (real_case): uses real_case_mentor_prompt frame only.
+        Mentor commentary for Practice (real_case): ``real_case_mentor_rule.txt`` and [real_case_mentor] only—no DEMO mentor assets.
         """
         ctx = self._analysis_to_simulation_context(analysis)
         try:
-            mentor_rules = get_mentor_rule_text()
+            mentor_rules = get_real_case_mentor_rule_text()
         except Exception:
             mentor_rules = ""
         pr = str(practice_role or "seller").strip().lower()
         if pr not in ("buyer", "seller"):
             pr = "seller"
+        mw = get_real_case_mentor_max_words()
         prompt = build_real_case_mentor_prompt(
             practice_role=pr,
             speaker_label=speaker_label,
@@ -337,18 +361,108 @@ class ModelClient:
             scenario_context=ctx,
             recent_dialogue=recent_dialogue,
             mentor_rules=mentor_rules,
-            max_words=REAL_CASE_MENTOR_MAX_WORDS,
+            max_words=mw,
         )
         if self.provider not in {"openai", "bedrock"}:
             return fallback_real_case_mentor_note(pr, speaker_label, utterance)
-        approx_tokens = min(900, max(320, int(REAL_CASE_MENTOR_MAX_WORDS * 2.8)))
-        text = self.complete(prompt, temperature=0.28, max_tokens=approx_tokens)
+        cap = get_int("real_case_mentor", "llm_max_tokens_cap", 900)
+        mn = get_int("real_case_mentor", "llm_max_tokens_min", 320)
+        mult = get_float("real_case_mentor", "llm_max_tokens_word_multiplier", 2.8)
+        approx_tokens = min(cap, max(mn, int(mw * mult)))
+        text = self.complete(
+            prompt,
+            temperature=get_float("real_case_mentor", "llm_temperature", 0.28),
+            max_tokens=approx_tokens,
+        )
         normalized = normalize_real_case_mentor_text(text or "")
         return (
             normalized
             if normalized.strip()
             else fallback_real_case_mentor_note(pr, speaker_label, utterance)
         )
+
+    def generate_demo_ai_negotiation_script(
+        self,
+        analysis: Dict[str, Any],
+        *,
+        turn_count: int = 18,
+        difficulty: str = "medium",
+    ) -> List[Dict[str, str]]:
+        """
+        Demo_AI_negotiation: one-shot full transcript (16–20 lines) for Sandbox DEMO replay.
+        """
+        n = clamp_demo_turns(int(turn_count))
+        diff = str(difficulty or "medium").strip().lower()
+        if diff not in {"simple", "medium", "hard"}:
+            diff = "medium"
+        ctx = self._analysis_to_simulation_context(analysis)
+        try:
+            policy = get_strategy_policy_text()
+        except Exception:
+            policy = ""
+        try:
+            sell_ex = get_sell_skill_text()
+        except Exception:
+            sell_ex = ""
+        try:
+            buy_ex = get_buy_skill_text()
+        except Exception:
+            buy_ex = ""
+
+        prompt = build_demo_ai_negotiation_prompt(
+            scenario_context=ctx,
+            strategy_policy=policy,
+            seller_skill_excerpt=sell_ex,
+            buyer_skill_excerpt=buy_ex,
+            turn_count=n,
+            difficulty=diff,
+        )
+
+        if self.provider not in {"openai", "bedrock"}:
+            return fallback_demo_script_turns(n)
+
+        t_ai = get_float("demo_ai_negotiation", "llm_temperature", 0.42)
+        base = get_int("demo_ai_negotiation", "llm_max_tokens_base", 800)
+        per = get_int("demo_ai_negotiation", "llm_max_tokens_per_turn", 260)
+        cap_tok = get_int("demo_ai_negotiation", "llm_max_tokens_cap", 12000)
+        raw = self.complete(
+            prompt,
+            temperature=t_ai,
+            max_tokens=min(cap_tok, base + n * per),
+        )
+        parsed = self._extract_json(raw)
+        turns: Any = None
+        if isinstance(parsed, dict):
+            turns = parsed.get("turns")
+        if not isinstance(turns, list) or len(turns) < max(6, n // 2):
+            logger.warning("Demo_AI_negotiation: invalid or short turns; using fallback script")
+            return fallback_demo_script_turns(n)
+        out = ModelClient._normalize_demo_script_turns(turns, expected=n)
+        if len(out) < max(6, n // 2):
+            return fallback_demo_script_turns(n)
+        return out
+
+    @staticmethod
+    def _normalize_demo_script_turns(turns: List[Any], *, expected: int) -> List[Dict[str, str]]:
+        out: List[Dict[str, str]] = []
+        for i in range(expected):
+            row: Any = turns[i] if i < len(turns) else {}
+            if not isinstance(row, dict):
+                row = {}
+            want = "buyer" if i % 2 == 0 else "seller"
+            sp = str(row.get("speaker") or "").strip().lower()
+            if sp not in ("buyer", "seller"):
+                sp = want
+            elif sp != want:
+                sp = want
+            txt = str(row.get("text") or "").strip()
+            if not txt:
+                txt = (
+                    "Let's align on terms that work for both sides while keeping full-package economics explicit."
+                )
+            txt = apply_demo_script_hard_word_cap(sp, txt)
+            out.append({"speaker": sp, "text": txt})
+        return out
 
     @staticmethod
     def _clean_sim_utterance(raw: str) -> str:
@@ -486,7 +600,11 @@ class ModelClient:
     def generate_buyer_line(self, analysis: Dict[str, Any], simulation_state: Dict[str, Any]) -> str:
         """Generate one buyer line from two-agent state."""
         messages = self.build_buyer_messages(analysis, simulation_state)
-        text = self.complete_chat(messages, temperature=0.45, max_tokens=520)
+        text = self.complete_chat(
+            messages,
+            temperature=get_float("buyer_agent", "chat_temperature", 0.45),
+            max_tokens=get_int("buyer_agent", "chat_max_tokens", 520),
+        )
         cleaned = self._clean_sim_utterance(text)
         return cleaned or (
             "We still need stronger commercials on price and terms before we can close internal approval."
@@ -495,7 +613,11 @@ class ModelClient:
     def generate_seller_line(self, analysis: Dict[str, Any], simulation_state: Dict[str, Any]) -> str:
         """Generate one seller draft line from two-agent state."""
         messages = self.build_seller_messages(analysis, simulation_state)
-        text = self.complete_chat(messages, temperature=0.4, max_tokens=520)
+        text = self.complete_chat(
+            messages,
+            temperature=get_float("seller_agent", "chat_temperature", 0.4),
+            max_tokens=get_int("seller_agent", "chat_max_tokens", 520),
+        )
         cleaned = self._clean_sim_utterance(text)
         return cleaned or (
             "Let’s tie any commercial movement to clear value exchange while keeping payment policy within 45 days."
@@ -529,7 +651,11 @@ class ModelClient:
             '{"verdict":"PASS|FAIL","violations":["R1: ..."],"recommendation":"specific improvement guidance","deadlock_risk":"LOW|MEDIUM|HIGH","adjustment_for_next_turn":"..."}\n'
             "Do not output anything except JSON."
         )
-        raw = self.complete(prompt, temperature=0.2, max_tokens=220)
+        raw = self.complete(
+            prompt,
+            temperature=get_float("coaching_evaluator", "temperature", 0.2),
+            max_tokens=get_int("coaching_evaluator", "max_tokens", 220),
+        )
         return self._normalize_coaching_result(self._extract_json(raw), fallback_recommendation=(
             "Strengthen value defense and keep payment terms within 45 days before conceding anything."
         ))
@@ -572,7 +698,11 @@ class ModelClient:
             '{"verdict":"PASS|FAIL","violations":["R1: ..."],"recommendation":"specific improvement guidance","deadlock_risk":"LOW|MEDIUM|HIGH","adjustment_for_next_turn":"..."}\n'
             "Do not output anything except JSON."
         )
-        raw = self.complete(prompt, temperature=0.2, max_tokens=220)
+        raw = self.complete(
+            prompt,
+            temperature=get_float("coaching_evaluator", "temperature", 0.2),
+            max_tokens=get_int("coaching_evaluator", "max_tokens", 220),
+        )
         return self._normalize_coaching_result(self._extract_json(raw), fallback_recommendation=(
             "Keep the buyer position consistent and ask at least one clear clarifying question."
         ))

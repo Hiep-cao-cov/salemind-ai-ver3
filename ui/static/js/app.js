@@ -77,7 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
     public_transcript: [],
     next_speaker: 'buyer',
     buyer_private_context: {},
-    seller_private_context: {}
+    seller_private_context: {},
+    demo_script: [],
+    demo_script_cursor: 0
   });
   let simState = newSimState();
   let simInProgress = false;
@@ -383,16 +385,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    if (action === 'auto' && mode === 'sandbox') {
-      if (!getHasContext()) return;
-      if (simInProgress) {
-        await nextDemoSimulationTurn();
-      } else {
-        await startDemoSimulation();
-      }
-      return;
-    }
-
     isProcessing = true;
 
     let lastUserBubble = null;
@@ -553,6 +545,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
+  // Keep in sync with data/config.txt [demo_simulate] turns_default (server default for /simulate-step).
   const DEMO_TURNS = 18;
   const isMentorEnabled = () => (mentorToggle ? Boolean(mentorToggle.checked) : true);
   const getDifficulty = () => {
@@ -602,7 +595,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isProcessing || mode !== 'sandbox') return;
     isProcessing = true;
     refreshSandboxSimButtons();
-    setProgress(28, 'Starting DEMO (turn 1)...');
+    setProgress(22, 'Generating DEMO conversation (Demo_AI_negotiation, turn 1/16–20)...');
 
     try {
       if (chatPanel) chatPanel.innerHTML = '';
@@ -690,11 +683,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const clearPracticeChatUi = () => {
     if (!chatPanel) return;
+    const demoHint =
+      mode === 'sandbox'
+        ? 'Scenario is still loaded.<br>Use <strong>Start DEMO (step-by-step)</strong> to run again.'
+        : 'Scenario is still loaded.<br>Start a new negotiation thread below.';
     chatPanel.innerHTML = `
       <div id="chat-empty-state" class="chat-empty-state">
         <div class="empty-state-icon">◈</div>
         <h4>Ready to continue</h4>
-        <p>Scenario is still loaded.<br>Start a new negotiation thread below.</p>
+        <p>${demoHint}</p>
       </div>`;
   };
 
