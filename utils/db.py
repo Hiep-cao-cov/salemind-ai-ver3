@@ -403,7 +403,7 @@ def list_recent_sessions_for_user(user_id, mode_key, limit=10):
         rows = conn.execute("""
             SELECT * FROM sessions
             WHERE user_id=? AND mode_key=?
-            ORDER BY updated_at DESC
+            ORDER BY created_at DESC, session_id DESC
             LIMIT ?
         """, (user_id, mode_key, limit)).fetchall()
 

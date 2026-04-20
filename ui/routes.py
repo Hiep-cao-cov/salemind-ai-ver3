@@ -215,7 +215,8 @@ def workspace(request: Request, mode: str):
         if not session or str(session.get("user_id") or "") != str(user["id"]):
             raise HTTPException(status_code=404, detail="Session not found")
         session_id = raw_sid
-        update_session_mode(session_id, mode)
+        if str(session.get("mode_key") or "").strip() != mode:
+            update_session_mode(session_id, mode)
     else:
         # No DB row until the user successfully runs Analyze (session created in /api/scenario/prepare).
         session_id = ""
