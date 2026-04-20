@@ -2,56 +2,50 @@
 
 Enterprise negotiation training app built with FastAPI + Jinja, focused on Module 2 workflows.
 
-## Overview
-
-The app provides:
+## What the app does
 
 - Role-based login (`display_name`, `CWID`, `role`)
 - Two active workspace modes:
   - `sandbox` (DEMO)
   - `real_case` (Practice)
-- Scenario analysis and chat with persisted sessions/messages in SQLite
-- Optional cloud model integrations (OpenAI / AWS Bedrock), with deterministic fallback when not configured
+- Scenario analysis + negotiation chat with session history in SQLite
+- Mentor support with structured coaching output in Practice mode
+- Optional cloud model integrations (OpenAI / AWS Bedrock), with fallback behavior
 
-## Current Product Flow
+## Current UX flow
 
-### 1) DEMO (`/workspace/sandbox`)
+### DEMO mode (`/workspace/sandbox`)
 
-- Scenario source options:
-  - AI create scenario
-  - Scenario library
-  - Upload file
-  - Paste scenario text
-- Step-by-step DEMO simulation (`Start DEMO` + `Next turn`)
-- Optional mentor insight per turn
-- Difficulty levels: `simple`, `medium`, `hard`
-- Help/Coach actions and normal negotiated chat with AI seller
+- User can start from AI scenario, library, upload, or pasted text
+- `Analyze Scenario` prepares context first
+- Negotiation runs step-by-step (`Start DEMO`, `Next turn`)
+- Difficulty (`simple`, `medium`, `hard`) and Mentor (`on/off`) affect output
 
-### 2) Practice (`/workspace/real_case`)
+### Practice mode (`/workspace/real_case`)
 
-- Scenario source options:
-  - Scenario library
-  - Paste case text
-  - Upload file
-- User can choose practice role (`buyer` or `seller`)
-- Scenario is analyzed first, then negotiation chat continues with role-aware responses
-- `Finish` action supports:
-  - keep scenario + clear chat
-  - full reset (clear context/files/chat metadata)
+- User can start from library, upload, or pasted case text
+- User chooses role (`buyer` or `seller`)
+- Negotiation starts after analysis
+- Mentor output is formatted into:
+  - **Summary**
+  - **Tactical analysis**
+  - **Suggested responses strategies** (up to 4 bullet sentences)
 
-## Key Features
+## History and session behavior
 
-- FastAPI backend with Jinja templates
-- Streaming chat responses (SSE)
-- Scenario analysis modes:
-  - `no_llm`
-  - `local_model`
-  - `cloud_model`
-- Manager analytics dashboard (`/manager`) for manager roles
-- SQLite persistence for users, sessions, context, and messages
-- Upload context extraction pipeline (no embeddings)
+- History is separated by mode:
+  - DEMO history appears only in DEMO sidebar
+  - Practice history appears only in Practice sidebar
+- Session titles include mode tag (for example `[DEMO] ...`, `[PRACTICE] ...`)
+- `+` in sidebar creates a temporary draft history row immediately
+- If draft is not analyzed and user leaves/switches mode, draft is auto-discarded
+- History row shows useful chips:
+  - difficulty
+  - mentor on/off
+  - analyzed/draft status
+- Session title can be renamed inline in sidebar
 
-## Local Setup
+## Local setup
 
 ### 1) Create virtual environment and install dependencies
 
@@ -77,7 +71,7 @@ uvicorn app:app --reload
 
 Open: `http://127.0.0.1:8000`
 
-## Environment Variables
+## Environment variables
 
 ### OpenAI
 
@@ -111,7 +105,7 @@ $env:AWS_DEFAULT_REGION="ap-southeast-1"
 $env:BEDROCK_MODEL_ID="anthropic.claude-3-haiku-20240307-v1:0"
 ```
 
-If neither provider is configured, the app still runs using fallback behavior.
+If neither provider is configured, the app still runs with fallback behavior.
 
 ## Roles
 
@@ -120,13 +114,14 @@ If neither provider is configured, the app still runs using fallback behavior.
 - Sales Distributor
 - HR
 
-`Sales Manager` and `HR` can access manager endpoints/dashboard.
+`Sales Manager` and `HR` can access manager dashboard (`/manager`).
 
 ## Notes
 
-- Active frontend script is `ui/static/js/app.js`.
-- Step-by-step DEMO endpoint is `/api/sandbox/simulate-step`.
-- Model clients initialize lazily at runtime.
+- Active frontend script: `ui/static/js/app.js`
+- DEMO step endpoint: `/api/sandbox/simulate-step`
+- Workspace route and APIs: `ui/routes.py`
+- SQLite helpers: `utils/db.py`
 
 ## Repository
 
