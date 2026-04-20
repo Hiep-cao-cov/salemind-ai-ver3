@@ -30,7 +30,98 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  let activeRename = null;
+  const closeInlineRename = () => {
+    if (!activeRename) return;
+    const { titleEl, inputEl, renameBtn } = activeRename;
+    inputEl.remove();
+    titleEl.hidden = false;
+    renameBtn.disabled = false;
+    activeRename = null;
+  };
+
+  const startInlineRename = (renameBtn) => {
+    const row = renameBtn.closest('.workspace-sidebar-row');
+    const titleEl = row?.querySelector('[data-session-title]');
+    const sid = renameBtn.getAttribute('data-rename-session');
+    if (!row || !titleEl || !sid) return;
+
+    if (activeRename?.sid === sid) return;
+    closeInlineRename();
+
+    const currentTitle = String(renameBtn.getAttribute('data-current-title') || titleEl.textContent || '').trim();
+    const inputEl = document.createElement('input');
+    inputEl.type = 'text';
+    inputEl.className = 'workspace-sidebar-title-input';
+    inputEl.value = currentTitle;
+    inputEl.maxLength = 120;
+
+    const commitRename = async () => {
+      const nextTitle = inputEl.value.trim();
+      if (!nextTitle || nextTitle === currentTitle) {
+        closeInlineRename();
+        return;
+      }
+      try {
+        const res = await fetch('/api/session/title', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sid, title: nextTitle }),
+        });
+        if (!res.ok) {
+          window.alert('Could not rename session.');
+          closeInlineRename();
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        const updatedTitle = String(data?.title || nextTitle).trim();
+        titleEl.textContent = updatedTitle;
+        titleEl.setAttribute('title', updatedTitle);
+        renameBtn.setAttribute('data-current-title', updatedTitle);
+        const link = row.querySelector('.workspace-sidebar-link');
+        if (link) link.setAttribute('title', updatedTitle);
+      } catch (err) {
+        console.error(err);
+        window.alert('Could not rename session.');
+      } finally {
+        closeInlineRename();
+      }
+    };
+
+    const cancelRename = () => {
+      closeInlineRename();
+    };
+
+    inputEl.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        commitRename();
+      } else if (ev.key === 'Escape') {
+        ev.preventDefault();
+        cancelRename();
+      }
+    });
+    inputEl.addEventListener('blur', () => {
+      commitRename();
+    });
+
+    titleEl.hidden = true;
+    renameBtn.disabled = true;
+    titleEl.insertAdjacentElement('afterend', inputEl);
+    inputEl.focus();
+    inputEl.select();
+    activeRename = { sid, titleEl, inputEl, renameBtn };
+  };
+
   workspaceLayout?.addEventListener('click', async (e) => {
+    const renameBtn = e.target.closest('[data-rename-session]');
+    if (renameBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      startInlineRename(renameBtn);
+      return;
+    }
+
     const delBtn = e.target.closest('[data-delete-session]');
     if (!delBtn) return;
     e.preventDefault();
@@ -84,6 +175,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const mode = root.dataset.mode || 'sandbox';
   let sessionId = String(root.dataset.session || '').trim();
+  let sessionIsDraft = String(root.dataset.sessionIsDraft || 'false').toLowerCase() === 'true';
+  const SESSION_PREFS_LS_PREFIX = 'workspaceSessionPrefs';
 
   const getPracticeRole = () => (root.dataset.practiceRole || 'seller').toLowerCase();
 
@@ -139,6 +232,69 @@ document.addEventListener('DOMContentLoaded', () => {
   const chipMentor = document.getElementById('chip-mentor');
   const negotiationWorkspaceBadge = document.getElementById('negotiation-workspace-badge');
 
+  const getPrefsStorageKey = () => {
+    const sid = String(sessionId || '').trim() || 'draft';
+    return `${SESSION_PREFS_LS_PREFIX}:${mode}:${sid}`;
+  };
+
+  const saveSessionUiPrefs = () => {
+    try {
+      const prefs = {
+        difficulty: String(difficultySelect?.value || 'medium').toLowerCase(),
+        mentor: mentorToggle ? Boolean(mentorToggle.checked) : true
+      };
+      localStorage.setItem(getPrefsStorageKey(), JSON.stringify(prefs));
+    } catch (_) {
+      /* ignore */
+    }
+    if (sessionId) {
+      fetch('/api/session/ui-prefs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          difficulty: String(difficultySelect?.value || 'medium').toLowerCase(),
+          mentor: mentorToggle ? Boolean(mentorToggle.checked) : true
+        })
+      }).catch(() => {
+        /* ignore */
+      });
+    }
+  };
+
+  const loadSessionUiPrefs = () => {
+    try {
+      const raw = localStorage.getItem(getPrefsStorageKey());
+      if (!raw) return;
+      const prefs = JSON.parse(raw);
+      if (difficultySelect) {
+        const d = String(prefs?.difficulty || '').toLowerCase();
+        if (d === 'simple' || d === 'medium' || d === 'hard') {
+          difficultySelect.value = d;
+        }
+      }
+      if (mentorToggle && typeof prefs?.mentor === 'boolean') {
+        mentorToggle.checked = prefs.mentor;
+      }
+    } catch (_) {
+      /* ignore */
+    }
+  };
+
+  const applyServerSessionUiPrefs = () => {
+    if (difficultySelect) {
+      const d = String(root.dataset.sessionDifficulty || '').toLowerCase();
+      if (d === 'simple' || d === 'medium' || d === 'hard') {
+        difficultySelect.value = d;
+      }
+    }
+    if (mentorToggle) {
+      const m = String(root.dataset.sessionMentorEnabled || '').toLowerCase();
+      if (m === 'true') mentorToggle.checked = true;
+      if (m === 'false') mentorToggle.checked = false;
+    }
+  };
+
   const isMentorEnabled = () => (mentorToggle ? Boolean(mentorToggle.checked) : true);
   const getDifficulty = () => {
     const value = String(difficultySelect?.value || 'medium').toLowerCase();
@@ -166,14 +322,51 @@ document.addEventListener('DOMContentLoaded', () => {
     const id = String(newId || '').trim();
     if (!id) return;
     if (id === sessionId) return;
+    const oldPrefsKey = getPrefsStorageKey();
     sessionId = id;
     root.dataset.session = id;
+    sessionIsDraft = false;
+    root.dataset.sessionIsDraft = 'false';
+    const newPrefsKey = getPrefsStorageKey();
+    try {
+      if (oldPrefsKey !== newPrefsKey) {
+        const oldPrefs = localStorage.getItem(oldPrefsKey);
+        const newPrefs = localStorage.getItem(newPrefsKey);
+        if (oldPrefs && !newPrefs) {
+          localStorage.setItem(newPrefsKey, oldPrefs);
+        }
+      }
+    } catch (_) {
+      /* ignore */
+    }
+    saveSessionUiPrefs();
     const hid = form?.querySelector('input[name="session_id"]');
     if (hid) hid.value = id;
     const url = new URL(window.location.href);
     url.pathname = `/workspace/${encodeURIComponent(mode)}`;
     url.searchParams.set('session_id', id);
     window.history.replaceState(null, '', `${url.pathname}?${url.searchParams.toString()}`);
+  };
+
+  const tryDiscardDraftSession = () => {
+    if (!sessionId || !sessionIsDraft) return;
+    if (getHasContext()) return;
+    if (chatPanel?.querySelector('.message-row')) return;
+    const payload = JSON.stringify({ session_id: sessionId });
+    try {
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon('/api/session/discard-draft', new Blob([payload], { type: 'application/json' }));
+      } else {
+        fetch('/api/session/discard-draft', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+          keepalive: true
+        }).catch(() => {});
+      }
+    } catch (_) {
+      /* ignore */
+    }
   };
 
   const scenarioLibraryWrap = document.getElementById('scenario-library-wrap');
@@ -374,6 +567,117 @@ document.addEventListener('DOMContentLoaded', () => {
     return 'AI Coach';
   };
 
+  const escapeHtml = (value) =>
+    String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  const formatMentorInsightHtml = (rawText) => {
+    let text = String(rawText || '').replace(/\r\n/g, '\n').trim();
+    if (!text) return '';
+
+    // Normalize common inline heading patterns so headers are always detected,
+    // even when model returns "Summary: ... Tactical analysis: ...".
+    text = text
+      .replace(
+        /(?:^|\s)(?:\d+\s*[\).:-]\s*)?(Summary\s*:)/gi,
+        '\n$1\n'
+      )
+      .replace(
+        /(?:^|\s)(?:\d+\s*[\).:-]\s*)?(Tactical\s+analysis\s*:)/gi,
+        '\n$1\n'
+      )
+      .replace(
+        /(?:^|\s)(?:\d+\s*[\).:-]\s*)?(Suggested\s+responses?\s*(?:and\s*)?strateg(?:y|ies)\s*:)/gi,
+        '\n$1\n'
+      )
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+
+    const headingRx =
+      /^\s*(?:\d+\s*[\).:-]\s*)?(summary|tactical analysis|suggested responses?\s*(?:and\s*)?strateg(?:y|ies))\s*:?\s*$/i;
+    const lines = text.split('\n');
+    const sections = [];
+    let current = { key: 'general', heading: '', lines: [] };
+
+    lines.forEach((line) => {
+      const m = line.match(headingRx);
+      if (m) {
+        if (current.heading || current.lines.length) sections.push(current);
+        const keyRaw = String(m[1] || '').toLowerCase();
+        const key = keyRaw.includes('summary')
+          ? 'summary'
+          : keyRaw.includes('tactical')
+            ? 'tactical'
+            : 'suggested';
+        const heading =
+          key === 'summary'
+            ? 'Summary'
+            : key === 'tactical'
+              ? 'Tactical analysis'
+              : 'Suggested responses strategies';
+        current = { key, heading, lines: [] };
+      } else {
+        current.lines.push(line);
+      }
+    });
+    if (current.heading || current.lines.length) sections.push(current);
+
+    const toParagraphHtml = (arr) => {
+      const cleaned = arr
+        .map((x) => String(x || '').trim())
+        .filter(Boolean)
+        .map((x) => escapeHtml(x));
+      if (!cleaned.length) return '';
+      return `<p>${cleaned.join('<br>')}</p>`;
+    };
+
+    const toBulletHtml = (arr) => {
+      const items = [];
+      const splitSentences = (value) => {
+        const parts = String(value || '')
+          .split(/(?<=[.!?])\s+/)
+          .map((x) => x.trim())
+          .filter(Boolean);
+        return parts.length ? parts : [String(value || '').trim()].filter(Boolean);
+      };
+      arr.forEach((line) => {
+        const t = String(line || '').trim();
+        if (!t) return;
+        const noPrefix = t
+          .replace(/^(?:[-*•]\s*)/, '')
+          .replace(/^\d+\s*[\).:-]\s*/, '')
+          .trim();
+        if (!noPrefix) return;
+        splitSentences(noPrefix).forEach((s) => {
+          const cleaned = String(s || '').replace(/^\s*[-–—]+\s*/, '').trim();
+          if (cleaned) items.push(cleaned);
+        });
+      });
+      const picked = items.slice(0, 4);
+      if (!picked.length) return '';
+      return `<ul>${picked.map((x) => `<li>${escapeHtml(x)}</li>`).join('')}</ul>`;
+    };
+
+    const blocks = sections
+      .map((sec) => {
+        const heading = sec.heading ? `<strong>${escapeHtml(sec.heading)}</strong>` : '';
+        const body =
+          sec.key === 'suggested' ? toBulletHtml(sec.lines) : toParagraphHtml(sec.lines);
+        if (!heading && !body) return '';
+        return `<div class="mentor-format-block">${heading}${body}</div>`;
+      })
+      .filter(Boolean);
+
+    if (!blocks.length) {
+      return `<p>${escapeHtml(text).replace(/\n/g, '<br>')}</p>`;
+    }
+    return blocks.join('');
+  };
+
   const appendMessage = (role, text = '', auditSummary = '', typing = false) => {
     if (!chatPanel) return null;
 
@@ -404,7 +708,7 @@ document.addEventListener('DOMContentLoaded', () => {
       sum.textContent = 'Full coaching text';
       const region = document.createElement('div');
       region.className = 'bubble-text mentor-body mentor-scroll-region';
-      region.textContent = String(text || '').trim();
+      region.innerHTML = formatMentorInsightHtml(String(text || '').trim());
       details.appendChild(sum);
       details.appendChild(region);
       bubble.appendChild(meta);
@@ -918,6 +1222,12 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // Initial state
+  document.querySelectorAll('.message-row.mentor .mentor-body').forEach((el) => {
+    const raw = String(el.textContent || '').trim();
+    el.innerHTML = formatMentorInsightHtml(raw);
+  });
+  loadSessionUiPrefs();
+  applyServerSessionUiPrefs();
   refreshScenarioUI();
   refreshAnalyzerCaption();
   if (mode === 'real_case') {
@@ -1038,10 +1348,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   difficultySelect?.addEventListener('change', () => {
+    saveSessionUiPrefs();
     updateRunContextChips();
   });
 
   mentorToggle?.addEventListener('change', () => {
+    saveSessionUiPrefs();
     updateRunContextChips();
     if (!isMentorEnabled()) {
       // Keep conversation turns intact; only hide mentor commentary when disabled.
@@ -1069,6 +1381,14 @@ document.addEventListener('DOMContentLoaded', () => {
       streamChat('chat');
     }
   });
+
+  document.querySelectorAll('.mode-btn, .workspace-sidebar-new').forEach((el) => {
+    el.addEventListener('click', () => {
+      tryDiscardDraftSession();
+    });
+  });
+  window.addEventListener('pagehide', tryDiscardDraftSession);
+  window.addEventListener('beforeunload', tryDiscardDraftSession);
 
   syncWorkspaceChrome();
 

@@ -30,13 +30,16 @@ from utils.db import (
     delete_session_context_row,
     delete_session_files_meta,
     delete_session_for_user,
+    delete_draft_session_for_user,
     get_manager_analytics,
     get_session,
     get_session_context,
     get_session_detail,
     list_recent_sessions_for_user,
+    mark_session_ready,
     update_session_mode,
     update_session_practice_role,
+    update_session_ui_prefs,
     update_session_title,
     upsert_session_context,
     upsert_user,
@@ -66,10 +69,11 @@ def _default_session_list_title(mode: str) -> str:
 
 
 def _maybe_rename_session_after_analysis(session_id: str, mode: str, analysis: Dict[str, Any]) -> None:
-    """Prefer the scenario analysis title so the sidebar is easy to scan."""
+    """Prefer scenario title while always keeping mode in the sidebar label."""
+    label = MODE_LABELS.get(mode, mode).strip().upper()
     title = (analysis or {}).get("title")
     if title and str(title).strip():
-        update_session_title(session_id, str(title).strip())
+        update_session_title(session_id, f"[{label}] {str(title).strip()}")
     else:
         update_session_title(session_id, _default_session_list_title(mode))
 
@@ -132,6 +136,18 @@ def _serialize_context(mode_context: Dict[str, object] | None) -> Dict[str, obje
         "generated_scenario": analysis.get("generated_scenario", ""),
         "raw_text": mode_context.get("raw_text", ""),
     }
+
+
+def _with_mode_tag_title(mode: str, title: str) -> str:
+    label = MODE_LABELS.get(mode, mode).strip().upper()
+    tag = f"[{label}]"
+    base = (title or "").strip()
+    if not base:
+        dt = datetime.utcnow()
+        base = f"{dt.strftime('%d %b %Y, %H:%M')}"
+    if base.startswith(tag):
+        return base
+    return f"{tag} {base}"
 
 
 def _sync_db_user(request: Request) -> Dict[str, Any]:
@@ -209,16 +225,27 @@ def workspace(request: Request, mode: str):
     mode = normalized_mode
 
     # Read from query string only (avoids FastAPI treating `session_id` like a cookie param).
+    new_flag = str(request.query_params.get("new") or "").strip().lower() in ("1", "true", "yes")
     raw_sid = (request.query_params.get("session_id") or "").strip()
-    if raw_sid:
+    if new_flag:
+        session_id = create_session(
+            user_id=user["id"],
+            module_key="module_2",
+            mode_key=mode,
+            title=_default_session_list_title(mode),
+            is_draft=True,
+        )
+    elif raw_sid:
         session = get_session(raw_sid)
         if not session or str(session.get("user_id") or "") != str(user["id"]):
             raise HTTPException(status_code=404, detail="Session not found")
-        session_id = raw_sid
-        if str(session.get("mode_key") or "").strip() != mode:
-            update_session_mode(session_id, mode)
+        # Keep histories strictly separated by mode in both sidebar and workspace.
+        if str(session.get("mode_key") or "").strip() == mode:
+            session_id = raw_sid
+        else:
+            session_id = ""
     else:
-        # No DB row until the user successfully runs Analyze (session created in /api/scenario/prepare).
+        # Keep workspace blank on mode entry; create DB history only on Analyze.
         session_id = ""
 
     if session_id:
@@ -233,9 +260,17 @@ def workspace(request: Request, mode: str):
                 update_session_practice_role(session_id, practice_role)
     else:
         practice_role = "seller"
+        sess_row = {}
 
     detail = get_session_detail(session_id, module_key="module_2", mode_key=mode)
     mode_context = _serialize_context(detail.get("context"))
+
+    recent_sessions = list_recent_sessions_for_user(user["id"], mode_key=mode, limit=12)
+    for row in recent_sessions:
+        row["title"] = _with_mode_tag_title(
+            str(row.get("mode_key") or mode),
+            str(row.get("title") or ""),
+        )
 
     context = _base_context(request)
     context.update(
@@ -245,12 +280,15 @@ def workspace(request: Request, mode: str):
             "session_id": session_id,
             "messages": _messages_with_parsed_audit(detail),
             "session_files": detail["files"],
-            "recent_sessions": list_recent_sessions_for_user(user["id"], mode_key=mode, limit=12),
+            "recent_sessions": recent_sessions,
             "scenario_library": load_scenarios(),
             "mode_context": mode_context,
             "has_context": bool(mode_context and mode_context.get("summary")),
             "model_info": get_active_model_info(),
             "practice_role": practice_role,
+            "session_is_draft": bool(int(sess_row.get("is_draft"))) if str(sess_row.get("is_draft", "")).strip() not in ("", "None") else False,
+            "session_difficulty": str(sess_row.get("difficulty") or "medium").strip().lower(),
+            "session_mentor_enabled": bool(int(sess_row.get("mentor_enabled"))) if str(sess_row.get("mentor_enabled", "")).strip() not in ("", "None") else True,
             "analyzer_line_no_llm": scenario_analyzer_display_line("no_llm"),
             "analyzer_line_local": scenario_analyzer_display_line("local_model"),
             "analyzer_line_cloud": scenario_analyzer_display_line("cloud_model"),
@@ -317,6 +355,7 @@ async def api_prepare_scenario(
         if not session or str(session.get("user_id") or "") != str(user["id"]):
             raise HTTPException(status_code=404, detail="Session not found")
         session_id = sid_in
+        mark_session_ready(session_id)
     else:
         session_id = create_session(
             user_id=user["id"],
@@ -397,6 +436,45 @@ async def api_session_practice_role(request: Request):
     return JSONResponse({"ok": True})
 
 
+@router.post("/api/session/ui-prefs")
+async def api_session_ui_prefs(request: Request):
+    user = _sync_db_user(request)
+    payload = await request.json()
+    session_id = str(payload.get("session_id", "")).strip()
+    difficulty = str(payload.get("difficulty", "medium")).strip().lower()
+    mentor_raw = payload.get("mentor", True)
+    if isinstance(mentor_raw, str):
+        mentor = mentor_raw.strip().lower() in ("1", "true", "yes", "on")
+    else:
+        mentor = bool(mentor_raw)
+    if not session_id:
+        raise HTTPException(status_code=400, detail="Session ID is required")
+    session = get_session(session_id)
+    if not session or str(session.get("user_id") or "") != str(user["id"]):
+        raise HTTPException(status_code=404, detail="Session not found")
+    update_session_ui_prefs(session_id, difficulty, mentor)
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/session/title")
+async def api_session_title(request: Request):
+    user = _sync_db_user(request)
+    payload = await request.json()
+    session_id = str(payload.get("session_id", "")).strip()
+    title = str(payload.get("title", "")).strip()
+    if not session_id:
+        raise HTTPException(status_code=400, detail="Session ID is required")
+    if not title:
+        raise HTTPException(status_code=400, detail="Title is required")
+    session = get_session(session_id)
+    if not session or str(session.get("user_id") or "") != str(user["id"]):
+        raise HTTPException(status_code=404, detail="Session not found")
+    mode = str(session.get("mode_key") or "").strip().lower()
+    update_session_title(session_id, _with_mode_tag_title(mode, title))
+    updated = get_session(session_id) or {}
+    return JSONResponse({"ok": True, "title": str(updated.get("title") or title)})
+
+
 @router.post("/api/session/delete")
 async def api_session_delete(request: Request):
     user = _sync_db_user(request)
@@ -407,6 +485,17 @@ async def api_session_delete(request: Request):
     if not delete_session_for_user(session_id, user["id"]):
         raise HTTPException(status_code=404, detail="Session not found")
     return JSONResponse({"ok": True})
+
+
+@router.post("/api/session/discard-draft")
+async def api_session_discard_draft(request: Request):
+    user = _sync_db_user(request)
+    payload = await request.json()
+    session_id = str(payload.get("session_id", "")).strip()
+    if not session_id:
+        raise HTTPException(status_code=400, detail="Session ID is required")
+    discarded = delete_draft_session_for_user(session_id, user["id"])
+    return JSONResponse({"ok": True, "discarded": bool(discarded)})
 
 
 @router.post("/api/session/finish-negotiation")

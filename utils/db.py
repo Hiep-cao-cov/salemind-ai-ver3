@@ -105,6 +105,18 @@ def init_db():
             conn.execute("ALTER TABLE sessions ADD COLUMN practice_role TEXT DEFAULT 'seller'")
         except sqlite3.OperationalError:
             pass
+        try:
+            conn.execute("ALTER TABLE sessions ADD COLUMN difficulty TEXT DEFAULT 'medium'")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            conn.execute("ALTER TABLE sessions ADD COLUMN mentor_enabled INTEGER DEFAULT 1")
+        except sqlite3.OperationalError:
+            pass
+        try:
+            conn.execute("ALTER TABLE sessions ADD COLUMN is_draft INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
 
         # Legacy rows: practice_role omitted on INSERT used the column default (once 'buyer').
         try:
@@ -112,6 +124,23 @@ def init_db():
                 "UPDATE sessions SET practice_role = 'seller' "
                 "WHERE practice_role IS NULL OR TRIM(COALESCE(practice_role, '')) = ''"
             )
+        except sqlite3.OperationalError:
+            pass
+        try:
+            conn.execute(
+                "UPDATE sessions SET difficulty = 'medium' "
+                "WHERE difficulty IS NULL OR TRIM(COALESCE(difficulty, '')) = ''"
+            )
+        except sqlite3.OperationalError:
+            pass
+        try:
+            conn.execute(
+                "UPDATE sessions SET mentor_enabled = 1 WHERE mentor_enabled IS NULL"
+            )
+        except sqlite3.OperationalError:
+            pass
+        try:
+            conn.execute("UPDATE sessions SET is_draft = 0 WHERE is_draft IS NULL")
         except sqlite3.OperationalError:
             pass
 
@@ -149,7 +178,7 @@ def upsert_user(cwid, display_name, role):
 # SESSION
 # =========================
 
-def create_session(user_id, module_key, mode_key, title):
+def create_session(user_id, module_key, mode_key, title, *, is_draft: bool = False):
     with get_connection() as conn:
 
         # ensure user exists
@@ -168,8 +197,8 @@ def create_session(user_id, module_key, mode_key, title):
 
         conn.execute("""
             INSERT INTO sessions
-            (session_id, user_id, module_key, mode_key, title, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (session_id, user_id, module_key, mode_key, title, created_at, updated_at, is_draft)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             session_id,
             user_id,
@@ -177,7 +206,8 @@ def create_session(user_id, module_key, mode_key, title):
             mode_key,
             title,
             now_iso(),
-            now_iso()
+            now_iso(),
+            1 if is_draft else 0,
         ))
 
         # INSERT omits practice_role; older DBs used DEFAULT 'buyer' — set Covestro default explicitly.
@@ -228,6 +258,48 @@ def update_session_title(session_id: str, title: str, max_len: int = 72) -> None
             "UPDATE sessions SET title=?, updated_at=? WHERE session_id=?",
             (t, now_iso(), session_id),
         )
+
+
+def update_session_ui_prefs(session_id: str, difficulty: str, mentor_enabled: bool) -> None:
+    d = str(difficulty or "").strip().lower()
+    if d not in ("simple", "medium", "hard"):
+        d = "medium"
+    m = 1 if bool(mentor_enabled) else 0
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE sessions SET difficulty=?, mentor_enabled=?, updated_at=? WHERE session_id=?",
+            (d, m, now_iso(), session_id),
+        )
+
+
+def mark_session_ready(session_id: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE sessions SET is_draft=0, updated_at=? WHERE session_id=?",
+            (now_iso(), session_id),
+        )
+
+
+def delete_draft_session_for_user(session_id: str, user_id: str) -> bool:
+    session = get_session(session_id)
+    if not session or str(session.get("user_id") or "") != str(user_id):
+        return False
+    if int(session.get("is_draft") or 0) != 1:
+        return False
+    with get_connection() as conn:
+        msg_count = conn.execute(
+            "SELECT COUNT(*) AS c FROM messages WHERE session_id=?",
+            (session_id,),
+        ).fetchone()["c"]
+        ctx_count = conn.execute(
+            "SELECT COUNT(*) AS c FROM session_context WHERE session_id=?",
+            (session_id,),
+        ).fetchone()["c"]
+        if msg_count or ctx_count:
+            return False
+        conn.execute("DELETE FROM session_files WHERE session_id=?", (session_id,))
+        conn.execute("DELETE FROM sessions WHERE session_id=?", (session_id,))
+    return True
 
 
 def delete_session_for_user(session_id: str, user_id: str) -> bool:
@@ -373,7 +445,7 @@ def get_session_detail(
         if mode_key:
             messages = conn.execute(
                 """
-                SELECT role, content, audit_json FROM messages
+                SELECT role, content, audit_json, mode_key FROM messages
                 WHERE session_id=? AND module_key=? AND mode_key=?
                 ORDER BY id ASC
                 """,
@@ -382,7 +454,7 @@ def get_session_detail(
         else:
             messages = conn.execute(
                 """
-                SELECT role, content, audit_json FROM messages
+                SELECT role, content, audit_json, mode_key FROM messages
                 WHERE session_id=? AND module_key=?
                 ORDER BY id ASC
                 """,
@@ -401,8 +473,15 @@ def get_session_detail(
 def list_recent_sessions_for_user(user_id, mode_key, limit=10):
     with get_connection() as conn:
         rows = conn.execute("""
-            SELECT * FROM sessions
-            WHERE user_id=? AND mode_key=?
+            SELECT
+                s.*,
+                CASE
+                    WHEN sc.analysis_json IS NOT NULL AND TRIM(COALESCE(sc.analysis_json, '')) <> ''
+                    THEN 1 ELSE 0
+                END AS has_context
+            FROM sessions s
+            LEFT JOIN session_context sc ON sc.session_id = s.session_id
+            WHERE s.user_id=? AND s.mode_key=?
             ORDER BY created_at DESC, session_id DESC
             LIMIT ?
         """, (user_id, mode_key, limit)).fetchall()

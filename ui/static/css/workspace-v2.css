@@ -193,7 +193,7 @@
 
 .workspace-v2 .workspace-sidebar-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
+  grid-template-columns: minmax(0, 1fr) 32px 36px;
   align-items: stretch;
   gap: 0;
   border-radius: 10px;
@@ -278,6 +278,33 @@
   outline-offset: -2px;
 }
 
+.workspace-v2 .workspace-sidebar-rename {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0 2px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--w2-muted);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.workspace-v2 .workspace-sidebar-rename:hover {
+  background: rgba(29, 95, 209, 0.08);
+  color: var(--w2-accent-2);
+}
+
+.workspace-v2 .workspace-sidebar-rename:focus-visible {
+  outline: 2px solid var(--w2-accent-2);
+  outline-offset: -2px;
+}
+
 .workspace-v2 .workspace-sidebar-link-body {
   display: flex;
   flex-direction: column;
@@ -295,9 +322,62 @@
   white-space: nowrap;
 }
 
+.workspace-v2 .workspace-sidebar-title-input {
+  width: 100%;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  border: 1px solid #b7cceb;
+  border-radius: 8px;
+  padding: 4px 7px;
+  color: var(--w2-text);
+  background: #fff;
+}
+
+.workspace-v2 .workspace-sidebar-title-input:focus {
+  outline: none;
+  border-color: var(--w2-accent-2);
+  box-shadow: 0 0 0 2px rgba(29, 95, 209, 0.16);
+}
+
 .workspace-v2 .workspace-sidebar-link-meta {
   font-size: 11px;
   color: var(--w2-muted);
+}
+
+.workspace-v2 .workspace-sidebar-row-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.workspace-v2 .workspace-row-chip {
+  font-size: 10px;
+  line-height: 1;
+  border-radius: 999px;
+  padding: 3px 7px;
+  border: 1px solid #d0deee;
+  color: #1f3d66;
+  background: #f4f8ff;
+}
+
+.workspace-v2 .workspace-row-chip.off {
+  color: #64748b;
+  border-color: #d6dee8;
+  background: #f8fafc;
+}
+
+.workspace-v2 .workspace-row-chip.analyzed {
+  color: #0f766e;
+  border-color: #9fdacf;
+  background: #ecfdf5;
+}
+
+.workspace-v2 .workspace-row-chip.draft {
+  color: #7c2d12;
+  border-color: #f3c6a7;
+  background: #fff7ed;
 }
 
 .workspace-v2 .workspace-sidebar-empty {
@@ -314,6 +394,10 @@
 }
 
 .workspace-v2 .workspace-session-sidebar.is-collapsed .workspace-sidebar-delete {
+  display: none;
+}
+
+.workspace-v2 .workspace-session-sidebar.is-collapsed .workspace-sidebar-rename {
   display: none;
 }
 
